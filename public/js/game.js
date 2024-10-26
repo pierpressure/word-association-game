@@ -408,7 +408,7 @@ async endGame(message) {
 Guesses: ${guessBlocks.join('')}
 Hints: ${hintBlocks.join('')}
 
-Play WordMaster at: https://wordmaster-game.com
+Play WordMaster at: https://word-association-game.onrender.com/
 `.trim();
     };
     
