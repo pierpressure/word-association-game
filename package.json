@@ -1,0 +1,21 @@
+{
+  "name": "word-association-game",
+  "version": "1.0.0",
+  "description": "A semantic word association game using GloVe word embeddings",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "create-vectors": "node scripts/create-vectors.js"
+  },
+  "keywords": [
+    "word-game",
+    "semantics",
+    "nlp"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "an-array-of-english-words": "^2.0.0",
+    "express": "^4.19.1"
+  }
+}

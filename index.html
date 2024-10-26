@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Association Game</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div id="game-header">
+            <h1>Word Association Game</h1>
+            
+<div class="instructions-panel">
+    <div class="instructions-header">
+        <h2>How to Play</h2>
+        <button id="toggle-instructions" class="toggle-button">Show Rules</button>
+    </div>
+    
+    <div class="instructions-content" style="display: none;">
+        <div class="instruction-section">
+            <button class="section-toggle">
+                <span class="section-title">🎮 Gameplay</span>
+                <span class="toggle-icon">+</span>
+            </button>
+            <div class="section-content">
+                <ul>
+                    <li>You have 3 guesses to find words related to a hidden target word</li>
+                    <li>Each guess gets a score based on how semantically similar it is</li>
+                    <li>The closer your word is to the target, the more points you earn!</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="instruction-section">
+            <button class="section-toggle">
+                <span class="section-title">💯 Scoring</span>
+                <span class="toggle-icon">+</span>
+            </button>
+            <div class="section-content">
+                <ul>
+                    <li><span class="highlight">Perfect Match (100%):</span> 1000 points</li>
+                    <li><span class="highlight">Very Close (90%+):</span> 200 points</li>
+                    <li><span class="highlight">Close (70-89%):</span> 100 points</li>
+                    <li><span class="highlight">Getting There (50-69%):</span> 50 points</li>
+                    <li><span class="highlight">Trying (30-49%):</span> 20 points</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="instruction-section">
+            <button class="section-toggle">
+                <span class="section-title">⭐ Bonuses</span>
+                <span class="toggle-icon">+</span>
+            </button>
+            <div class="section-content">
+                <ul>
+                    <li>Earlier guesses earn more points</li>
+                    <li>Win bonus for remaining guesses</li>
+                    <li>Streak bonus for consecutive good guesses</li>
+                    <li>First hint is free, additional hints cost points</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+        </div>
+
+        <div id="game-container" style="display: none;">
+            <div class="game-core">
+                <div class="score-display">
+                    <div class="current-score">
+                        <div class="score-label">Score</div>
+                        <div class="score-value" id="current-score">0</div>
+                    </div>
+                    <div class="high-score">
+                        <div class="score-label">High Score</div>
+                        <div class="score-value" id="high-score">0</div>
+                    </div>
+                </div>
+
+                <form id="guess-form" class="guess-form">
+                    <input 
+                        type="text" 
+                        id="guess-input" 
+                        placeholder="Enter your guess"
+                        autocomplete="off"
+                    >
+                    <button type="submit">Guess</button>
+                </form>
+
+                <div id="guesses-container"></div>
+                
+                <div id="game-over" style="display: none;">
+                    <h2>Game Over!</h2>
+                    <p id="target-word-reveal"></p>
+                    <button id="play-again">Play Again</button>
+                </div>
+            </div>
+
+            <div class="hints-panel"></div>
+        </div>
+
+        <div id="loading">
+            Loading game...
+        </div>
+    </div>
+    <script src="/js/game.js"></script>
+</body>
+</html>
