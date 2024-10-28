@@ -330,15 +330,10 @@ function getHints(word) {
         general: "This is a common everyday word"
     };
     
-    let usageHint = `${categoryHints[wordCategory]}`;
-    if (word.length <= 4) {
-        usageHint += " (it's a short word)";
-    } else if (word.length >= 6) {
-        usageHint += " (it's a longer word)";
-    }
-    hints.push(usageHint);
+    const categoryHint = `${categoryHints[wordCategory]}${word.length <= 4 ? " (it's a short word)" : word.length >= 6 ? " (it's a longer word)" : ""}`;
+    hints.push(categoryHint);
     
-    // Improved third hint: Part of speech + usage context
+    // Hint 3: Part of speech + usage context
     const partsOfSpeech = {
         nouns: ['bread', 'cloud', 'heart', 'beach', 'river', 'dream', 'metal', 'queen', 'chest', 'blade', 'tower', 'movie'],
         verbs: ['sleep', 'build', 'climb', 'dance', 'float', 'smile', 'guard', 'dream', 'climb', 'paint', 'shine'],
@@ -352,7 +347,6 @@ function getHints(word) {
         partOfSpeech = 'adjective';
     }
     
-    // Context templates for different parts of speech
     const contextTemplates = {
         noun: [
             "This is a thing you can __",
@@ -377,11 +371,9 @@ function getHints(word) {
         ]
     };
 
-    // Select a context template and fill in some context
     const templates = contextTemplates[partOfSpeech];
     const template = templates[Math.floor(Math.random() * templates.length)];
     
-    // Get contextual words based on word vectors for filling in the blank
     let contextWords = '';
     if (wordVectors[word]) {
         const contextRelations = Object.entries(wordVectors)
@@ -391,7 +383,7 @@ function getHints(word) {
             }))
             .filter(({word: w, similarity}) => 
                 similarity > 0.3 && 
-                similarity < 0.5 && // Use more distant relations for context
+                similarity < 0.5 &&
                 w !== word &&
                 !w.includes(word) &&
                 !word.includes(w)
@@ -405,20 +397,19 @@ function getHints(word) {
         }
     }
 
-    let usageHint = `This word is a ${partOfSpeech}. `;
-    usageHint += template.replace('__', contextWords || 'in everyday situations');
+    let partOfSpeechHint = `This word is a ${partOfSpeech}. `;
+    partOfSpeechHint += template.replace('__', contextWords || 'in everyday situations');
 
-    // Add a small extra detail based on part of speech
     if (partOfSpeech === 'noun') {
-        usageHint += word.length > 4 ? "\nIt's a longer noun." : "\nIt's a short noun.";
+        partOfSpeechHint += word.length > 4 ? "\nIt's a longer noun." : "\nIt's a short noun.";
     } else if (partOfSpeech === 'verb') {
         const pastTense = word + (word.endsWith('e') ? 'd' : 'ed');
-        usageHint += `\nThink about how things are "${pastTense}".`;
+        partOfSpeechHint += `\nThink about how things are "${pastTense}".`;
     } else if (partOfSpeech === 'adjective') {
-        usageHint += "\nIt describes a quality or characteristic.";
+        partOfSpeechHint += "\nIt describes a quality or characteristic.";
     }
 
-    hints.push(usageHint);
+    hints.push(partOfSpeechHint);
     
     return hints;
 }
