@@ -29,27 +29,83 @@ class WordGame {
         const container = document.querySelector('.container');
         if (!container) return;
 
-        // Clear existing content
+        const lastScore = parseInt(localStorage.getItem('lastScore') || '0');
+        const lastWord = localStorage.getItem('lastWord');
+        const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
+        const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
+        
+        // Generate guess blocks for share display
+        const guessBlocks = Array(3).fill('⬜').map((block, i) => {
+            if (i < guessHistory.length) return '🟦';
+            return block;
+        });
+        const hintBlocks = Array(3).fill('⬜').map((block, i) => {
+            if (i < hintsUsed) return '💡';
+            return block;
+        });
+
         container.innerHTML = `
             <div class="already-played-message">
                 <h2>You've already played today!</h2>
-                <p>Come back tomorrow for a new word.</p>
                 <div class="countdown" id="countdown"></div>
-                <div class="statistics">
-                    <h3>Your Stats</h3>
-                    <p>High Score: ${this.gameState.highScore}</p>
-                    <p>Last Score: ${localStorage.getItem('lastScore') || '0'}</p>
-                </div>
-                <div class="share-section">
-                    <button class="share-button" onclick="navigator.clipboard.writeText(localStorage.getItem('lastShareText') || '').then(() => {
-                        document.querySelector('.share-tooltip').classList.add('show');
-                        setTimeout(() => {
-                            document.querySelector('.share-tooltip').classList.remove('show');
-                        }, 2000);
-                    })">
-                        Share Today's Score
-                    </button>
-                    <div class="share-tooltip">Copied to clipboard!</div>
+
+                <div class="game-summary">
+                    <div class="end-game-header">
+                        <div class="result-emoji">${lastScore >= 900 ? '🎯' : '🎲'}</div>
+                        <p class="target-word">Today's word was: <span class="highlight">${lastWord}</span></p>
+                    </div>
+
+                    <div class="guess-history">
+                        <h3>Your Guesses:</h3>
+                        ${guessHistory.map(guess => `
+                            <div class="guess-item" style="background: ${guess.color}20">
+                                <div class="guess-word">${guess.word}</div>
+                                <div class="guess-feedback">
+                                    <span class="guess-score">Match: ${guess.score}%</span>
+                                    <span class="points-earned">+${guess.points} points</span>
+                                    <span class="guess-message">${guess.message}</span>
+                                    <span class="emoji">${guess.emoji}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="score-showcase">
+                        <div class="final-score-display">
+                            <span class="score-label">Final Score</span>
+                            <span class="score-value">${lastScore}</span>
+                        </div>
+                        
+                        <div class="share-preview">
+                            <div class="share-line">WordMaster ${new Date().toISOString().split('T')[0]}</div>
+                            <div class="share-line">Score: ${lastScore}</div>
+                            <div class="share-line">Guesses: ${guessBlocks.join('')}</div>
+                            <div class="share-line">Hints: ${hintBlocks.join('')}</div>
+                        </div>
+                    </div>
+
+                    <div class="statistics">
+                        <h3>Your Stats</h3>
+                        <p>High Score: ${this.gameState.highScore}</p>
+                        <p>Last Score: ${lastScore}</p>
+                    </div>
+
+                    <div class="share-section">
+                        <button class="share-button" onclick="navigator.clipboard.writeText(localStorage.getItem('lastShareText') || '').then(() => {
+                            document.querySelector('.share-tooltip').classList.add('show');
+                            setTimeout(() => {
+                                document.querySelector('.share-tooltip').classList.remove('show');
+                            }, 2000);
+                        })">
+                            <span class="button-content">
+                                <svg class="share-icon" width="20" height="20" viewBox="0 0 24 24">
+                                    <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
+                                </svg>
+                                Share Score
+                            </span>
+                        </button>
+                        <div class="share-tooltip">Copied to clipboard!</div>
+                    </div>
                 </div>
             </div>
         `;
@@ -321,6 +377,18 @@ async makeGuess() {
         // Calculate guess points based on remaining guesses and score
         let guessPoints = this.calculateGuessPoints(data.score);
         
+        // Store the guess data
+        const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
+        guessHistory.push({
+            word: guess,
+            score: data.score,
+            points: guessPoints,
+            message: data.message,
+            emoji: data.emoji,
+            color: data.color
+        });
+        localStorage.setItem('guessHistory', JSON.stringify(guessHistory));
+        
         // Create guess element with animation
         const guessElement = this.createAnimatedElement(
             'div',
@@ -347,7 +415,6 @@ async makeGuess() {
         
         // Check win/lose conditions
         if (data.score === 100 || this.gameState.guessesLeft === 0) {
-            // Apply final scoring adjustments
             this.applyFinalScore(data.score === 100);
             this.endGame(data.score === 100 ? 'You got it!' : 'Game Over!');
         }
@@ -427,7 +494,9 @@ async endGame(message) {
         const today = new Date().toISOString().split('T')[0];
         localStorage.setItem('lastPlayedDate', today);
         localStorage.setItem('lastScore', finalScore.toString());
-        
+        localStorage.setItem('lastWord', this.gameState.targetWord);
+        localStorage.setItem('hintsUsed', this.gameState.hintsRevealed.toString());
+    
         const generateShareText = () => {
             const guessBlocks = Array(3).fill('⬜').map((block, i) => {
                 if (i < (3 - this.gameState.guessesLeft)) return '🟦';
