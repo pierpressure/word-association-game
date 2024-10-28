@@ -107,7 +107,29 @@ button:disabled {
     font-weight: 600;
     transition: all 0.2s ease;
 }
+.already-played-message {
+    background: white;
+    padding: 2rem;
+    border-radius: 16px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+}
 
+.countdown {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #6366f1;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+.statistics {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+}
 .section-toggle:hover {
     background: #f8fafc;
 }
@@ -211,6 +233,24 @@ button:disabled {
 
 .guess-item {
     animation: slideIn 0.3s ease-out;
+}
+
+.guess-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 0.25rem;
+}
+
+.guess-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1a2027;
+    transition: all 0.2s ease;
+}
+
+.guess-value.last-guess {
+    color: #ef4444;
+    animation: pulse 1s infinite;
 }
 
 .streak {
@@ -550,19 +590,23 @@ button:disabled {
     margin-top: 1rem;
 }
 
-/* Score display */
+
 .score-display {
     display: flex;
-    justify-content: space-between;
+    justify-content: space-around;
     align-items: center;
     background: #f8fafc;
     padding: 1rem;
     border-radius: 12px;
     margin-bottom: 1rem;
+    gap: 1rem;
 }
 
-.current-score, .high-score {
+.current-score,
+.high-score,
+.guesses-left {
     text-align: center;
+    flex: 1;
 }
 
 .score-label {

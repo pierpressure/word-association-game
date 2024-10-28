@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
+const crypto = require('crypto');
+const dailyWords = require('./data/daily-words.json');
 
 const app = express();
 app.use(express.static('public'));
@@ -36,6 +38,23 @@ try {
     leaderboard = require('./data/leaderboard.json');
 } catch {
     leaderboard = [];
+}
+
+function getDateString() {
+    const now = new Date();
+    return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+}
+
+function getDailyWord() {
+    const startDate = new Date(dailyWords.startDate);
+    const today = new Date();
+    const daysDiff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+    const wordIndex = daysDiff % dailyWords.words.length;
+    return {
+        word: dailyWords.words[wordIndex],
+        dateString: today.toISOString().split('T')[0],
+        wordNumber: daysDiff + 1
+    };
 }
 
 // Helper function to validate hint words
@@ -208,17 +227,52 @@ function getFeedback(score) {
     return { message: "Ice cold", color: "#2980b9", emoji: "🧊" };
 }
 
+function isGoodRelatedWord(word, original) {
+    // Reject if it starts with capital (likely a name)
+    if (/^[A-Z]/.test(word)) return false;
+
+    // Reject common name suffixes
+    if (word.endsWith('son') || word.endsWith('ton')) return false;
+
+    // Reject if it looks like a name (common prefixes/suffixes)
+    const namePatterns = [
+        /^mc/, /^van/, /^de/, /^la/, /^san/,
+        /ville$/, /berg$/, /burg$/, /ford$/
+    ];
+    if (namePatterns.some(pattern => pattern.test(word))) return false;
+
+    // For color words, ensure related words are about color
+    const colors = ['red', 'blue', 'green', 'brown', 'black', 'white', 'yellow', 'pink', 'purple', 'orange'];
+    if (colors.includes(original.toLowerCase())) {
+        const colorRelated = [
+            'dark', 'light', 'bright', 'pale', 'deep', 'shade', 'tint', 'hue',
+            'colored', 'paint', 'dye', 'color', 'tone', 'tinted', 'shaded'
+        ];
+        return colorRelated.includes(word) || colors.includes(word);
+    }
+
+    // Only allow letters, 3-10 chars long
+    if (!/^[a-z]{3,10}$/.test(word)) return false;
+
+    return true;
+}
+
 function getHints(word) {
     const hints = [];
     
-    // Hint 1 (Free): Related words
+    // Hint 1: Related words (-10 points)
     if (wordVectors[word]) {
         const relatedWords = Object.entries(wordVectors)
             .map(([w, vec]) => ({
                 word: w,
                 similarity: cosineSimilarity(vec, wordVectors[word])
             }))
-            .filter(({similarity}) => similarity > 0.3 && similarity < 0.7)
+            .filter(({word: w, similarity}) => 
+                similarity > 0.3 && 
+                similarity < 0.7 &&
+                w !== word &&
+                isGoodRelatedWord(w, word)
+            )
             .sort((a, b) => b.similarity - a.similarity)
             .slice(0, 5)
             .map(({word}) => word);
@@ -226,29 +280,46 @@ function getHints(word) {
         if (relatedWords.length > 0) {
             hints.push(`Think about these related words: ${relatedWords.join(', ')}`);
         } else {
-            const broaderRelatedWords = Object.entries(wordVectors)
-                .map(([w, vec]) => ({
-                    word: w,
-                    similarity: cosineSimilarity(vec, wordVectors[word])
-                }))
-                .filter(({similarity}) => similarity > 0.2)
-                .sort((a, b) => b.similarity - a.similarity)
-                .slice(0, 3)
-                .map(({word}) => word);
+            // Fallback hints for specific categories
+            const categoryHints = {
+                colors: 'Think about colors and shades',
+                emotions: 'Think about feelings and emotions',
+                actions: 'Think about activities and movements',
+                nature: 'Think about the natural world',
+                objects: 'Think about everyday items',
+                // Add more categories as needed
+            };
             
-            hints.push(`Think about words like: ${broaderRelatedWords.join(', ')}`);
+            // Try to identify category and use appropriate hint
+            const hint = categoryHints[getWordCategory(word)] || 'Think about common English words';
+            hints.push(hint);
         }
-    } else {
-        hints.push("Think about common English words");
     }
-
-    // Hint 2 (-10 points): Word length
+    
+    // Hint 2: Word length
     hints.push(`${word.length} letters long`);
     
-    // Hint 3 (-15 points): First letter
+    // Hint 3: First letter
     hints.push(`Starts with '${word[0].toUpperCase()}'`);
     
     return hints;
+}
+
+function getWordCategory(word) {
+    const categories = {
+        colors: ['red', 'blue', 'green', 'brown', 'black', 'white', 'yellow', 'pink', 'purple', 'orange'],
+        emotions: ['happy', 'sad', 'angry', 'calm', 'love', 'hope', 'fear', 'joy'],
+        actions: ['run', 'jump', 'swim', 'dance', 'sing', 'play', 'write', 'read'],
+        nature: ['tree', 'flower', 'river', 'ocean', 'mountain', 'sky', 'sun', 'moon'],
+        objects: ['book', 'chair', 'table', 'door', 'window', 'clock', 'phone', 'lamp']
+    };
+
+    for (const [category, words] of Object.entries(categories)) {
+        if (words.includes(word.toLowerCase())) {
+            return category;
+        }
+    }
+    return null;
 }
 
 // Routes
@@ -301,32 +372,11 @@ app.get('/calculate-score', (req, res) => {
     res.json({ score, ...getFeedback(score) });
 });
 
+
 app.get('/get-target-word', (req, res) => {
-    const targetWordsArray = Array.from(TARGET_WORDS);
-    
-    // Double check that we have valid words
-    if (targetWordsArray.length === 0) {
-        console.error('No valid target words available');
-        return res.status(500).json({ error: 'Game configuration error' });
-    }
-    
-    // Select word and verify it has vectors
-    let word = targetWordsArray[Math.floor(Math.random() * targetWordsArray.length)];
-    
-    // This should never happen due to our filtering, but just in case
-    if (!wordVectors[word]) {
-        console.error(`Selected word "${word}" not found in vectors despite filtering`);
-        // Try to find any valid word
-        word = Object.keys(wordVectors)[0];
-    }
-    
+    const { word, dateString, wordNumber } = getDailyWord();
     const hints = getHints(word);
-    
-    res.json({ 
-        word,
-        hints,
-        category: 'random'
-    });
+    res.json({ word, hints, dateString, wordNumber });
 });
 
 app.get('/leaderboard', (req, res) => {
