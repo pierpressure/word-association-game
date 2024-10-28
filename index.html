@@ -10,60 +10,65 @@
     <div class="container">
         <div id="game-header">
             <h1>Word Association Game</h1>
-            
-<div class="instructions-panel">
-    <div class="instructions-header">
-        <h2>How to Play</h2>
-        <button id="toggle-instructions" class="toggle-button">Show Rules</button>
-    </div>
-    
-    <div class="instructions-content" style="display: none;">
-        <div class="instruction-section">
-            <button class="section-toggle">
-                <span class="section-title">🎮 Gameplay</span>
-                <span class="toggle-icon">+</span>
-            </button>
-            <div class="section-content">
-                <ul>
-                    <li>You have 3 guesses to find words related to a hidden target word</li>
-                    <li>Each guess gets a score based on how semantically similar it is</li>
-                    <li>The closer your word is to the target, the more points you earn!</li>
-                </ul>
-            </div>
-        </div>
+            <div class="instructions-panel">
+                <div class="instructions-header">
+                    <h2>How to Play</h2>
+                    <button id="toggle-instructions" class="toggle-button">Show Rules</button>
+                </div>
+                <div class="instructions-content" style="display: none;">
+                    <div class="instruction-section">
+                        <button class="section-toggle" aria-expanded="false">
+                            <span class="section-title">🎮 Gameplay</span>
+                            <span class="toggle-icon">+</span>
+                        </button>
+                        <div class="section-content">
+                            <ul>
+                                <li>Guess the hidden word in 3 tries</li>
+                                <li>Enter words that are <em>related in meaning</em> to the target word</li>
+                                <li>For example, if the target is "sleep", good guesses might be "rest", "dream", or "bed"</li>
+                                <li>Each guess gets a score showing how closely related it is</li>
+                                <li>Use the FREE first hint to get started!</li>
+                            </ul>
+                        </div>
+                    </div>
 
-        <div class="instruction-section">
-            <button class="section-toggle">
-                <span class="section-title">💯 Scoring</span>
-                <span class="toggle-icon">+</span>
-            </button>
-            <div class="section-content">
-                <ul>
-                    <li><span class="highlight">Perfect Match (100%):</span> 1000 points</li>
-                    <li><span class="highlight">Very Close (90%+):</span> 200 points</li>
-                    <li><span class="highlight">Close (70-89%):</span> 100 points</li>
-                    <li><span class="highlight">Getting There (50-69%):</span> 50 points</li>
-                    <li><span class="highlight">Trying (30-49%):</span> 20 points</li>
-                </ul>
-            </div>
-        </div>
+                    <div class="instruction-section">
+                        <button class="section-toggle" aria-expanded="false">
+                            <span class="section-title">💡 About Word Relationships</span>
+                            <span class="toggle-icon">+</span>
+                        </button>
+                        <div class="section-content">
+                            <ul>
+                                <li>Words are "related" if they are connected in meaning (semantically similar)</li>
+                                <li>Think: synonyms, categories, associations, and common contexts</li>
+                                <li><strong>Examples:</strong>
+                                    <ul class="examples-list">
+                                        <li>"beach" → "sand", "ocean", "wave", "shore"</li>
+                                        <li>"happy" → "joy", "smile", "cheer", "bright"</li>
+                                        <li>"bread" → "food", "wheat", "toast", "bake"</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
 
-        <div class="instruction-section">
-            <button class="section-toggle">
-                <span class="section-title">⭐ Bonuses</span>
-                <span class="toggle-icon">+</span>
-            </button>
-            <div class="section-content">
-                <ul>
-                    <li>Earlier guesses earn more points</li>
-                    <li>Win bonus for remaining guesses</li>
-                    <li>Streak bonus for consecutive good guesses</li>
-                    <li>First hint is free, additional hints cost points</li>
-                </ul>
+                    <div class="instruction-section">
+                        <button class="section-toggle" aria-expanded="false">
+                            <span class="section-title">💯 Scoring</span>
+                            <span class="toggle-icon">+</span>
+                        </button>
+                        <div class="section-content">
+                            <ul>
+                                <li>Perfect Match (100%): 1000 points</li>
+                                <li>Very Close (90%+): 200 points</li>
+                                <li>Close (70-89%): 100 points</li>
+                                <li>Getting There (50-69%): 50 points</li>
+                                <li>Trying (30-49%): 20 points</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</div>
         </div>
 
         <div id="game-container" style="display: none;">

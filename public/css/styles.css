@@ -292,7 +292,7 @@ button:disabled {
     color: #6b7280;
     padding: 2rem;
 }
-/* Hint Section Styling */
+/* Add to your styles.css */
 .hints-panel {
     background: white;
     border-radius: 16px;
@@ -317,9 +317,61 @@ button:disabled {
     background: #f8fafc;
     border-radius: 12px;
     overflow: hidden;
-    transition: all 0.2s ease;
 }
 
+.hint-item:first-child {
+    border: 2px solid #059669;
+    background: #ecfdf5;
+}
+
+.hint-item:first-child .hint-button {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.hint-item:first-child .hint-label::before {
+    content: "👋 ";
+}
+
+.hint-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+}
+
+.hint-item:first-child .hint-content {
+    background: #f0fdf4;
+    border-color: #059669;
+    padding: 1.25rem;
+    font-size: 1.1rem;
+    color: #065f46;
+}
+
+.examples-list {
+    margin-top: 0.5rem;
+    margin-left: 1rem;
+    font-size: 0.9rem;
+    color: #4b5563;
+}
+
+.examples-list li {
+    margin: 0.25rem 0;
+}
+
+/* Update the hint button text styling */
+.hint-item:first-child .hint-label {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.hint-item:first-child .hint-cost {
+    background: #dcfce7;
+    color: #059669;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+}
 .hint-button {
     width: 100%;
     padding: 1rem 1.25rem;

@@ -414,6 +414,7 @@ applyFinalScore(isWin) {
         finalScore: this.gameState.score
     };
 }
+// Update endGame method in game.js
 async endGame(message) {
         clearInterval(this.timerInterval);
         
@@ -427,7 +428,6 @@ async endGame(message) {
         localStorage.setItem('lastPlayedDate', today);
         localStorage.setItem('lastScore', finalScore.toString());
         
-        // Generate share text
         const generateShareText = () => {
             const guessBlocks = Array(3).fill('⬜').map((block, i) => {
                 if (i < (3 - this.gameState.guessesLeft)) return '🟦';
@@ -437,16 +437,17 @@ async endGame(message) {
                 if (i < hintsUsed) return '💡';
                 return block;
             });
-
+            
+            // Use the dateString we got from the server
             return `
-WordMaster ${this.gameState.dateString}
-Score: ${breakdown.finalScore}
+        WordMaster ${this.gameState.dateString}
+        Score: ${breakdown.finalScore}
 
-Guesses: ${guessBlocks.join('')}
-Hints: ${hintBlocks.join('')}
+        Guesses: ${guessBlocks.join('')}
+        Hints: ${hintBlocks.join('')}
 
-Play at: https://word-association-game.onrender.com/
-`.trim();
+        Play at: https://word-association-game.onrender.com/
+        `.trim();
         };
 
         // Save share text for later
@@ -476,12 +477,23 @@ Play at: https://word-association-game.onrender.com/
             }
         }
         
-        // Create end game modal
+        // Create end game modal with close button
         const endGameElement = this.createAnimatedElement(
             'div',
             'end-game-modal',
             `
                 <div class="end-game-content">
+                    <button class="close-modal" style="
+                        position: absolute;
+                        top: 10px;
+                        right: 10px;
+                        background: none;
+                        border: none;
+                        font-size: 1.5rem;
+                        cursor: pointer;
+                        padding: 5px;
+                        color: #64748b;
+                    ">×</button>
                     <div class="end-game-header ${isWin ? 'winner' : ''}">
                         <div class="result-emoji">${isWin ? '🎯' : '🎲'}</div>
                         <h2 class="result-text">${isWin ? 'Brilliant!' : 'Game Over'}</h2>
@@ -500,13 +512,6 @@ Play at: https://word-association-game.onrender.com/
                                 <span class="item-label">Base Score</span>
                                 <span class="item-value">+${breakdown.baseScore}</span>
                             </div>
-                            
-                            ${breakdown.winBonus > 0 ? `
-                                <div class="breakdown-item bonus">
-                                    <span class="item-label">Win Bonus</span>
-                                    <span class="item-value">+${breakdown.winBonus}</span>
-                                </div>
-                            ` : ''}
                             
                             ${breakdown.hintsDeduction < 0 ? `
                                 <div class="breakdown-item penalty">
@@ -554,11 +559,24 @@ Play at: https://word-association-game.onrender.com/
             this.gameContainer
         );
         
+        // Add click handler for close button
+        const closeButton = endGameElement.querySelector('.close-modal');
+        closeButton.addEventListener('click', () => {
+            endGameElement.remove();
+        });
+        
+        // Add click handler to close when clicking outside the modal
+        endGameElement.addEventListener('click', (e) => {
+            if (e.target === endGameElement) {
+                endGameElement.remove();
+            }
+        });
+        
         // Start countdown for next word
         this.updateCountdown();
         setInterval(() => this.updateCountdown(), 1000);
         
-        // Disable inputs
+        // Disable inputs but keep guesses visible
         this.guessInput.disabled = true;
         this.guessForm.querySelector('button').disabled = true;
         const hintButtons = document.querySelectorAll('.hint-button');
