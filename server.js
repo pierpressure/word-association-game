@@ -257,7 +257,7 @@ function isGoodRelatedWord(word, original) {
 function getHints(word) {
     const hints = [];
     
-    // Hint 1: Related words (keep this as it's good)
+    // Hint 1: Keep our reliable related words hint
     if (wordVectors[word]) {
         const relatedWords = Object.entries(wordVectors)
             .map(([w, vec]) => ({
@@ -279,65 +279,11 @@ function getHints(word) {
         }
     }
     
-    // Hint 2: Category and Usage hint
-    const categories = {
-        emotions: ['happy', 'sad', 'brave', 'calm', 'hope', 'pride', 'joy', 'peace'],
-        colors: ['amber', 'azure', 'coral', 'ivory', 'gold', 'pink', 'teal'],
-        nature: ['earth', 'flora', 'river', 'coast', 'grove', 'stone', 'storm', 'cloud', 'flame'],
-        time: ['dawn', 'delay', 'night', 'april', 'year'],
-        movement: ['drift', 'float', 'glide', 'dance', 'climb', 'race', 'swing'],
-        materials: ['glass', 'metal', 'steel', 'wood', 'clay', 'silk', 'brick'],
-        animals: ['eagle', 'cobra', 'horse', 'wolf', 'swan', 'koala'],
-        food: ['bread', 'cream', 'fruit', 'spice', 'candy'],
-        body: ['heart', 'pulse', 'brain', 'chest', 'palm'],
-        buildings: ['hotel', 'house', 'tower', 'cabin'],
-        clothing: ['boots', 'denim', 'lace'],
-        tools: ['blade', 'knife', 'torch', 'shield'],
-        music: ['chord', 'flute', 'music', 'song'],
-        weather: ['storm', 'frost', 'cloud', 'rain'],
-        abstract: ['truth', 'peace', 'faith', 'dream', 'ideal', 'logic'],
-        actions: ['build', 'carry', 'catch', 'clean', 'climb'],
-        qualities: ['brave', 'clear', 'quick', 'fresh', 'pure']
-    };
-    
-    let wordCategory = 'general';
-    for (const [category, words] of Object.entries(categories)) {
-        if (words.includes(word.toLowerCase())) {
-            wordCategory = category;
-            break;
-        }
-    }
-    
-    // Add category-specific second hint
-    const categoryHints = {
-        emotions: "This word describes a feeling or emotional state",
-        colors: "This word is related to color or appearance",
-        nature: "This word is found in nature",
-        time: "This word is related to time or timing",
-        movement: "This word describes a way of moving",
-        materials: "This word is a type of material",
-        animals: "This word is a type of animal",
-        food: "This word is related to food or drink",
-        body: "This word is related to the human body",
-        buildings: "This word is a type of building or structure",
-        clothing: "This word is related to clothing or fashion",
-        tools: "This word is a type of tool or instrument",
-        music: "This word is related to music or sound",
-        weather: "This word is related to weather or climate",
-        abstract: "This word represents an abstract concept",
-        actions: "This word describes an action or activity",
-        qualities: "This word describes a quality or characteristic",
-        general: "This is a common everyday word"
-    };
-    
-    const categoryHint = `${categoryHints[wordCategory]}${word.length <= 4 ? " (it's a short word)" : word.length >= 6 ? " (it's a longer word)" : ""}`;
-    hints.push(categoryHint);
-    
-    // Hint 3: Part of speech + usage context
+    // Hint 2: Part of Speech + First Letter
     const partsOfSpeech = {
-        nouns: ['bread', 'cloud', 'heart', 'beach', 'river', 'dream', 'metal', 'queen', 'chest', 'blade', 'tower', 'movie'],
-        verbs: ['sleep', 'build', 'climb', 'dance', 'float', 'smile', 'guard', 'dream', 'climb', 'paint', 'shine'],
-        adjectives: ['brave', 'quick', 'clear', 'sharp', 'fresh', 'clean', 'bright', 'sweet', 'pure', 'soft'],
+        nouns: ['bread', 'cloud', 'heart', 'beach', 'river', 'dream', 'metal', 'queen', 'chest', 'blade', 'tower'],
+        verbs: ['sleep', 'build', 'climb', 'dance', 'float', 'smile', 'guard', 'dream', 'climb', 'paint'],
+        adjectives: ['brave', 'quick', 'clear', 'sharp', 'fresh', 'clean', 'bright', 'sweet', 'pure', 'brown']
     };
     
     let partOfSpeech = 'noun'; // default
@@ -346,70 +292,47 @@ function getHints(word) {
     } else if (partsOfSpeech.adjectives.includes(word.toLowerCase())) {
         partOfSpeech = 'adjective';
     }
-    
-    const contextTemplates = {
-        noun: [
-            "This is a thing you can __",
-            "You might find this in __",
-            "This is often associated with __",
-            "This can be described as __",
-            "You might see this __"
-        ],
-        verb: [
-            "Something you might do when __",
-            "An action often done __",
-            "Something that can be done __",
-            "An activity related to __",
-            "A way to __"
-        ],
-        adjective: [
-            "Used to describe things that are __",
-            "A quality found in __",
-            "A characteristic of __",
-            "Something that feels __",
-            "Often describes __"
-        ]
+
+    const typeHints = {
+        'noun': 'This is a thing or object',
+        'verb': 'This is an action or something you can do',
+        'adjective': 'This describes how something looks or feels'
     };
 
-    const templates = contextTemplates[partOfSpeech];
-    const template = templates[Math.floor(Math.random() * templates.length)];
+    hints.push(`${typeHints[partOfSpeech]}. Starts with '${word[0].toUpperCase()}'`);
     
-    let contextWords = '';
+    // Hint 3: More specific semantic hint using word vectors
     if (wordVectors[word]) {
-        const contextRelations = Object.entries(wordVectors)
+        // Get opposite or contrasting words
+        const opposites = Object.entries(wordVectors)
             .map(([w, vec]) => ({
                 word: w,
                 similarity: cosineSimilarity(vec, wordVectors[word])
             }))
             .filter(({word: w, similarity}) => 
-                similarity > 0.3 && 
-                similarity < 0.5 &&
+                similarity < 0.2 && // Look for dissimilar words
+                similarity > 0 && // But not totally unrelated
                 w !== word &&
-                !w.includes(word) &&
-                !word.includes(w)
+                isGoodRelatedWord(w, word)
             )
-            .sort((a, b) => b.similarity - a.similarity)
+            .sort((a, b) => a.similarity - b.similarity) // Get most dissimilar
             .slice(0, 2)
             .map(({word}) => word);
-            
-        if (contextRelations.length > 0) {
-            contextWords = contextRelations.join(' or ');
+
+        let contrastHint;
+        if (partOfSpeech === 'adjective') {
+            contrastHint = `Unlike ${opposites.join(' or ')}`; 
+        } else if (partOfSpeech === 'verb') {
+            contrastHint = `Different from ${opposites.join(' or ')}`;
+        } else {
+            contrastHint = `Not like ${opposites.join(' or ')}`;
         }
+
+        hints.push(contrastHint);
+    } else {
+        // Fallback hint just shows number of letters
+        hints.push(`Has ${word.length} letters`);
     }
-
-    let partOfSpeechHint = `This word is a ${partOfSpeech}. `;
-    partOfSpeechHint += template.replace('__', contextWords || 'in everyday situations');
-
-    if (partOfSpeech === 'noun') {
-        partOfSpeechHint += word.length > 4 ? "\nIt's a longer noun." : "\nIt's a short noun.";
-    } else if (partOfSpeech === 'verb') {
-        const pastTense = word + (word.endsWith('e') ? 'd' : 'ed');
-        partOfSpeechHint += `\nThink about how things are "${pastTense}".`;
-    } else if (partOfSpeech === 'adjective') {
-        partOfSpeechHint += "\nIt describes a quality or characteristic.";
-    }
-
-    hints.push(partOfSpeechHint);
     
     return hints;
 }
