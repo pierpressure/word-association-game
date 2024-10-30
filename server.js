@@ -36,10 +36,41 @@ let vectorsLoaded = false;
 
 // Add leaderboard storage
 let leaderboard = [];
-try {
-    leaderboard = require('./data/leaderboard.json');
-} catch {
-    leaderboard = [];
+
+async function initLeaderboard() {
+    const leaderboardPath = path.join(__dirname, 'data/leaderboard.json');
+    try {
+        try {
+            const data = await fs.readFile(leaderboardPath, 'utf8');
+            const parsed = JSON.parse(data);
+            
+            if (Array.isArray(parsed)) {
+                leaderboard = parsed.filter(entry => 
+                    entry && 
+                    typeof entry === 'object' && 
+                    'name' in entry &&
+                    'score' in entry
+                );
+            } else {
+                leaderboard = [];
+            }
+        } catch (readError) {
+            // File doesn't exist, create empty leaderboard
+            leaderboard = [];
+        }
+        
+        leaderboard.sort((a, b) => b.score - a.score);
+        
+        await fs.writeFile(
+            leaderboardPath,
+            JSON.stringify(leaderboard, null, 2)
+        );
+        
+        console.log('Leaderboard initialized with', leaderboard.length, 'entries');
+    } catch (error) {
+        console.error('Error managing leaderboard:', error);
+        leaderboard = [];
+    }
 }
 
 function getDateString() {
@@ -47,7 +78,11 @@ function getDateString() {
     return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
 }
 
-// In server.js, update the getDailyWord function:
+function seededRandom(seed) {
+    const x = Math.sin(seed++) * 10000;
+    return x - Math.floor(x);
+}
+
 function getDailyWord() {
     const startDate = new Date(dailyWords.startDate);
     const today = new Date();
@@ -55,22 +90,10 @@ function getDailyWord() {
     startDate.setHours(0, 0, 0, 0);
     
     const daysDiff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
-    
-    // Use the date as a seed for pseudo-random selection
-    // This ensures same word is chosen all day, but selection appears random
     const seed = parseInt(today.toISOString().split('T')[0].replace(/-/g, ''));
     
-    // Knuth shuffle algorithm with seeded random
-    function seededRandom(seed) {
-        const x = Math.sin(seed++) * 10000;
-        return x - Math.floor(x);
-    }
-    
-    // Get deterministic but seemingly random index for today
-    const index = Math.floor(seededRandom(seed) * dailyWords.words.length);
-    
     return {
-        word: dailyWords.words[index],
+        word: dailyWords.words[Math.floor(seededRandom(seed) * dailyWords.words.length)],
         dateString: today.toISOString().split('T')[0],
         wordNumber: daysDiff + 1
     };
@@ -503,9 +526,10 @@ app.get('/get-target-word', (req, res) => {
 });
 
 app.get('/leaderboard', (req, res) => {
+    console.log('Leaderboard request received');
+    console.log('Current leaderboard:', leaderboard);
     res.json(leaderboard.slice(0, 10));
 });
-
 app.post('/submit-score', express.json(), (req, res) => {
     const { name, score, gamesPlayed, averageScore } = req.body;
     
@@ -553,6 +577,8 @@ async function initServer() {
         await loadWordVectors();
         const validWords = await validateDailyWords();
         console.log(`Filtered daily words list to ${validWords.length} words with valid vectors`);
+        
+        await initLeaderboard();
         
         // Only start server if vectors loaded successfully and server isn't already running
         if (!serverInitialized) {

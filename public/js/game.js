@@ -166,8 +166,7 @@ class WordGame {
     updateCountdown() {
         const now = new Date();
         const tomorrow = new Date(now);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(0, 0, 0, 0);
+        tomorrow.setHours(24, 0, 0, 0);  // Next midnight in local time
         
         const diff = tomorrow - now;
         const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -179,6 +178,7 @@ class WordGame {
             countdownEl.textContent = `Next word in: ${hours}h ${minutes}m ${seconds}s`;
         }
     }
+
 
     initializeDOM() {
         // Your existing initializeDOM code stays the same
@@ -328,9 +328,9 @@ showHints() {
                 if (index === 0) {
                     costLabel = '<span class="hint-cost free">Free!</span>';
                 } else if (index === 1) {
-                    costLabel = '<span class="hint-cost">Costs 10 points</span>';
+                    costLabel = '<span class="hint-cost">Costs 300 points</span>';
                 } else {
-                    costLabel = '<span class="hint-cost">Costs 15 points</span>';
+                    costLabel = '<span class="hint-cost">Costs 200 points</span>';
                 }
                 
                 return `
@@ -587,7 +587,7 @@ async endGame(message) {
             try {
                 const name = prompt(
                     this.scoreTracker.getPlayerName() 
-                        ? 'New high score! Enter your name:'
+                        ? 'You got it!!! And you got a new high score! Enter your name:'
                         : 'Enter your name for the leaderboard:'
                 );
                 
@@ -621,12 +621,14 @@ async endGame(message) {
                         color: #64748b;
                     ">×</button>
                     <div class="end-game-header ${isWin ? 'winner' : ''}">
-                        <div class="result-emoji">${isWin ? '🎯' : '🎲'}</div>
-                        <h2 class="result-text">${isWin ? 'Brilliant!' : 'Game Over'}</h2>
+                        <div class="result-emoji">${isWin ? '🎯' : '🙇'}</div>
+                        <h2 class="result-text">
+                            ${isWin ? 'Brilliant!' : 'Game Over'}
+                            ${isWin ? '<span class="emoji-celebration">🎉 🔝</span>' : ''}
+                        </h2>
                         <p class="target-word">The word was: <span class="highlight">${this.gameState.targetWord}</span></p>
                         <p class="daily-info">WordMaster ${this.gameState.dateString}</p>
                     </div>
-
                     <div class="score-showcase">
                         <div class="final-score-display">
                             <span class="score-label">Final Score</span>
@@ -735,8 +737,10 @@ async endGame(message) {
 
 async showLeaderboard() {
     try {
+        console.log('Fetching leaderboard...');
         const response = await fetch('/leaderboard');
         const leaderboard = await response.json();
+        console.log('Received leaderboard:', leaderboard);
         
         const leaderboardElement = this.createAnimatedElement(
             'div',

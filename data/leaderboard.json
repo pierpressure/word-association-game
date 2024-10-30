@@ -1,26 +1,9 @@
 [
   {
-    "leaderboard": []
-  },
-  {
-    "name": "Pier",
-    "score": 475,
+    "name": "Pepe",
+    "score": 750,
     "gamesPlayed": 1,
-    "averageScore": 475,
-    "date": "2024-10-28T23:24:55.612Z"
-  },
-  {
-    "name": "test",
-    "score": 450,
-    "gamesPlayed": 1,
-    "averageScore": 450,
-    "date": "2024-10-28T23:16:32.222Z"
-  },
-  {
-    "name": "pepe",
-    "score": 30,
-    "gamesPlayed": 1,
-    "averageScore": 30,
-    "date": "2024-10-28T23:14:21.736Z"
+    "averageScore": 750,
+    "date": "2024-10-30T17:02:42.431Z"
   }
 ]

@@ -808,6 +808,10 @@ button:disabled {
 .end-game-header.winner {
     color: #059669;
 }
+.emoji-celebration {
+    text-shadow: none;  /* Remove shadow from emojis */
+    margin-left: 8px;   /* Add some space between text and emojis */
+}
 
 .result-emoji {
     font-size: 4rem;
@@ -816,13 +820,12 @@ button:disabled {
 }
 
 .result-text {
-    font-size: 2.5rem;
-    font-weight: 800;
-    margin-bottom: 0.5rem;
     background: linear-gradient(45deg, #6366f1, #4f46e5);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);  /* Shadow only on text */
 }
+
 
 .target-word {
     font-size: 1.1rem;
