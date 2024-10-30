@@ -948,7 +948,7 @@ module.exports = {
     },
 
     heavens_space: {
-        words: ['sky', 'star', 'space'],
+        words: ['sky', 'star', 'sun', 'space'],
         type: "This is above us",
         contexts: [
             "Look up to see this",
