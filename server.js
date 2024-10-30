@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs').promises;
 const crypto = require('crypto');
 const dailyWords = require('./data/daily-words.json');
+const commonStopWords = new Set(['the', 'and', 'but', 'or', 'so', 'than', 'then', 'they', 'them']);
+const wordCategories = require('./data/wordCategories.js');
 
 const app = express();
 app.use(express.static('public'));
@@ -45,22 +47,31 @@ function getDateString() {
     return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
 }
 
+// In server.js, update the getDailyWord function:
 function getDailyWord() {
     const startDate = new Date(dailyWords.startDate);
-    // Force dates to be compared at midnight UTC
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     startDate.setHours(0, 0, 0, 0);
     
     const daysDiff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
-    const wordIndex = daysDiff % dailyWords.words.length;
     
-    // Format date consistently in YYYY-MM-DD format
-    const dateString = today.toISOString().split('T')[0];
+    // Use the date as a seed for pseudo-random selection
+    // This ensures same word is chosen all day, but selection appears random
+    const seed = parseInt(today.toISOString().split('T')[0].replace(/-/g, ''));
+    
+    // Knuth shuffle algorithm with seeded random
+    function seededRandom(seed) {
+        const x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    }
+    
+    // Get deterministic but seemingly random index for today
+    const index = Math.floor(seededRandom(seed) * dailyWords.words.length);
     
     return {
-        word: dailyWords.words[wordIndex],
-        dateString: dateString,
+        word: dailyWords.words[index],
+        dateString: today.toISOString().split('T')[0],
         wordNumber: daysDiff + 1
     };
 }
@@ -81,6 +92,66 @@ function isGoodHintWord(hint, target) {
 }
 
 
+async function validateDailyWords() {
+    const invalidWords = [];
+    const validWords = [];
+    
+    dailyWords.words.forEach(word => {
+        if (wordVectors[word.toLowerCase()]) {
+            validWords.push(word);
+        } else {
+            invalidWords.push(word);
+        }
+    });
+
+    // Sort invalid words alphabetically for easier review
+    invalidWords.sort();
+
+    console.log('All invalid words:');
+    console.log(JSON.stringify(invalidWords, null, 2));  // Pretty print the full array
+    console.log('\nInvalid word count by letter:');
+    
+    // Group by first letter for analysis
+    const byLetter = invalidWords.reduce((acc, word) => {
+        const firstLetter = word[0];
+        acc[firstLetter] = acc[firstLetter] || [];
+        acc[firstLetter].push(word);
+        return acc;
+    }, {});
+
+    Object.entries(byLetter).sort().forEach(([letter, words]) => {
+        console.log(`${letter}: ${words.length} words (${words.join(', ')})`);
+    });
+
+    console.log(`\nSummary:`);
+    console.log(`Total words: ${dailyWords.words.length}`);
+    console.log(`Valid words: ${validWords.length}`);
+    console.log(`Invalid words: ${invalidWords.length}`);
+
+    // Optionally write the filtered list back to the file
+    const newDailyWords = {
+        ...dailyWords,
+        words: validWords
+    };
+
+    await fs.writeFile(
+        path.join(__dirname, 'data/daily-words.json'),
+        JSON.stringify(newDailyWords, null, 2)
+    );
+    
+    // Also write out invalid words to a separate file for reference
+    await fs.writeFile(
+        path.join(__dirname, 'data/invalid-words.json'),
+        JSON.stringify({
+            invalidWords: invalidWords,
+            byLetter: byLetter,
+            totalInvalid: invalidWords.length,
+            totalValid: validWords.length
+        }, null, 2)
+    );
+    
+    return validWords;
+}
 // Load word vectors and enhance vocabulary
 async function loadWordVectors() {
     try {
@@ -214,7 +285,7 @@ function getRelatedWords(word) {
     
     return finalWords;
 }
-// Enhanced feedback with emojis and colors
+
 function getFeedback(score) {
     if (score === 100) return { message: "Perfect match!", color: "#2ecc71", emoji: "🎯" };
     if (score >= 90) return { message: "Extremely close!", color: "#27ae60", emoji: "🔥" };
@@ -222,6 +293,16 @@ function getFeedback(score) {
     if (score >= 50) return { message: "Getting warmer", color: "#e67e22", emoji: "⭐" };
     if (score >= 30) return { message: "Cold", color: "#3498db", emoji: "❄️" };
     return { message: "Ice cold", color: "#2980b9", emoji: "🧊" };
+}
+
+function calculateScore(similarity) {
+    // Adjusted scoring thresholds
+    if (similarity >= 0.8) return 100;  // Perfect/near perfect
+    if (similarity >= 0.6) return 90;   // Very close
+    if (similarity >= 0.4) return 70;   // Warm
+    if (similarity >= 0.25) return 50;  // Getting warmer
+    if (similarity >= 0.15) return 30;  // Cold
+    return 10;  // Ice cold
 }
 
 function isGoodRelatedWord(word, original) {
@@ -254,99 +335,96 @@ function isGoodRelatedWord(word, original) {
     return true;
 }
 
+
+// Function to get hints for a word
+function getWordHints(word) {
+    // Find the category for this word
+    let category = null;
+    for (const [catName, cat] of Object.entries(wordCategories)) {
+        if (cat.words.includes(word.toLowerCase())) {
+            category = cat;
+            break;
+        }
+    }
+
+    if (category) {
+        return {
+            type: category.type,
+            context: category.contexts[Math.floor(Math.random() * category.contexts.length)]
+        };
+    }
+
+    // Fallback for uncategorized words
+    return {
+        type: "This is a common word",
+        context: "Something you might encounter regularly"
+    };
+}
+
+
 function getHints(word) {
     const hints = [];
     
-    // Hint 1: Keep our reliable related words hint
-    if (wordVectors[word]) {
+    // Hint 1: Word relations (keep this part as is)
+    if (wordVectors && wordVectors[word]) {
         const relatedWords = Object.entries(wordVectors)
             .map(([w, vec]) => ({
                 word: w,
                 similarity: cosineSimilarity(vec, wordVectors[word])
             }))
-            .filter(({word: w, similarity}) => 
-                similarity > 0.3 && 
-                similarity < 0.7 &&
-                w !== word &&
-                isGoodRelatedWord(w, word)
-            )
+            .filter(({word: w, similarity}) => {
+                return similarity > 0.35 && 
+                       similarity < 0.9 &&
+                       w.length >= 3 &&
+                       commonWords.has(w) &&
+                       !w.includes(word) &&
+                       !word.includes(w) &&
+                       !/[^a-z]/.test(w);
+            })
             .sort((a, b) => b.similarity - a.similarity)
-            .slice(0, 5)
+            .slice(0, 4)
             .map(({word}) => word);
         
         if (relatedWords.length > 0) {
             hints.push(`Think about these related words: ${relatedWords.join(', ')}`);
-        }
-    }
-    
-    // Hint 2: Part of Speech + First Letter
-    const partsOfSpeech = {
-        nouns: ['bread', 'cloud', 'heart', 'beach', 'river', 'dream', 'metal', 'queen', 'chest', 'blade', 'tower'],
-        verbs: ['sleep', 'build', 'climb', 'dance', 'float', 'smile', 'guard', 'dream', 'climb', 'paint'],
-        adjectives: ['brave', 'quick', 'clear', 'sharp', 'fresh', 'clean', 'bright', 'sweet', 'pure', 'brown']
-    };
-    
-    let partOfSpeech = 'noun'; // default
-    if (partsOfSpeech.verbs.includes(word.toLowerCase())) {
-        partOfSpeech = 'verb';
-    } else if (partsOfSpeech.adjectives.includes(word.toLowerCase())) {
-        partOfSpeech = 'adjective';
-    }
-
-    const typeHints = {
-        'noun': 'This is a thing or object',
-        'verb': 'This is an action or something you can do',
-        'adjective': 'This describes how something looks or feels'
-    };
-
-    hints.push(`${typeHints[partOfSpeech]}. Starts with '${word[0].toUpperCase()}'`);
-    
-    // Hint 3: More specific semantic hint using word vectors
-    if (wordVectors[word]) {
-        // Get opposite or contrasting words
-        const opposites = Object.entries(wordVectors)
-            .map(([w, vec]) => ({
-                word: w,
-                similarity: cosineSimilarity(vec, wordVectors[word])
-            }))
-            .filter(({word: w, similarity}) => 
-                similarity < 0.2 && // Look for dissimilar words
-                similarity > 0 && // But not totally unrelated
-                w !== word &&
-                isGoodRelatedWord(w, word)
-            )
-            .sort((a, b) => a.similarity - b.similarity) // Get most dissimilar
-            .slice(0, 2)
-            .map(({word}) => word);
-
-        let contrastHint;
-        if (partOfSpeech === 'adjective') {
-            contrastHint = `Unlike ${opposites.join(' or ')}`; 
-        } else if (partOfSpeech === 'verb') {
-            contrastHint = `Different from ${opposites.join(' or ')}`;
         } else {
-            contrastHint = `Not like ${opposites.join(' or ')}`;
+            hints.push(`Think about common everyday words`);
         }
-
-        hints.push(contrastHint);
-    } else {
-        // Fallback hint just shows number of letters
-        hints.push(`Has ${word.length} letters`);
     }
+    
+    // Hint 2 & 3: Use categories
+    for (const [catName, category] of Object.entries(wordCategories)) {
+        if (category.words.includes(word.toLowerCase())) {
+            // Add hint 2 (type and first letter)
+            hints.push(`${category.type}. Starts with '${word[0].toUpperCase()}'`);
+            
+            // Add hint 3 (random context)
+            const randomContext = category.contexts[Math.floor(Math.random() * category.contexts.length)];
+            hints.push(randomContext);
+            
+            break;  // Exit once we've found the right category
+        }
+    }
+
+    // Make sure we always return three hints
+    while (hints.length < 3) {
+        if (hints.length === 1) {
+            hints.push(`This is a common word. Starts with '${word[0].toUpperCase()}'`);
+        } else {
+            hints.push(`Has ${word.length} letters`);
+        }
+    }
+
+    console.log('Generated hints for word:', word, hints);  // Debug log
     
     return hints;
 }
-function getWordCategory(word) {
-    const categories = {
-        colors: ['red', 'blue', 'green', 'brown', 'black', 'white', 'yellow', 'pink', 'purple', 'orange'],
-        emotions: ['happy', 'sad', 'angry', 'calm', 'love', 'hope', 'fear', 'joy'],
-        actions: ['run', 'jump', 'swim', 'dance', 'sing', 'play', 'write', 'read'],
-        nature: ['tree', 'flower', 'river', 'ocean', 'mountain', 'sky', 'sun', 'moon'],
-        objects: ['book', 'chair', 'table', 'door', 'window', 'clock', 'phone', 'lamp']
-    };
 
-    for (const [category, words] of Object.entries(categories)) {
-        if (words.includes(word.toLowerCase())) {
+
+
+function getWordCategory(word, categories) {
+    for (const [catName, category] of Object.entries(categories)) {
+        if (category.words.includes(word.toLowerCase())) {
             return category;
         }
     }
@@ -358,6 +436,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Fix the calculate-score endpoint:
 app.get('/calculate-score', (req, res) => {
     const { guess, target } = req.query;
     
@@ -378,29 +457,42 @@ app.get('/calculate-score', (req, res) => {
         });
     }
 
-    // Check if we have vectors for the words
-    if (!wordVectors[guessLower] || !wordVectors[targetLower]) {
+    // Check for exact match FIRST, before checking vectors
+    if (guessLower === targetLower) {
         return res.json({ 
-            score: 10,
-            message: "Valid word, but not very related", 
-            color: "#95a5a6",
-            emoji: "🤔"
+            score: 100,
+            message: "Perfect match!",
+            color: "#2ecc71",
+            emoji: "🎯"
         });
     }
 
-    // If exact match
-    if (guessLower === targetLower) {
-        return res.json({ score: 100, ...getFeedback(100) });
+    // Calculate similarity if we have vectors
+    if (wordVectors[guessLower] && wordVectors[targetLower]) {
+        const similarity = cosineSimilarity(
+            wordVectors[guessLower],
+            wordVectors[targetLower]
+        );
+        
+        // Use new scoring function
+        const calculatedScore = calculateScore(similarity);
+        
+        // Get feedback based on calculated score
+        const feedback = getFeedback(calculatedScore);
+        
+        return res.json({
+            score: calculatedScore,
+            ...feedback
+        });
     }
 
-    // Calculate semantic similarity
-    const similarity = cosineSimilarity(
-        wordVectors[guessLower],
-        wordVectors[targetLower]
-    );
-
-    const score = Math.round(Math.max(0, Math.min(99, similarity * 100)));
-    res.json({ score, ...getFeedback(score) });
+    // If we don't have vectors but it's a valid word
+    return res.json({ 
+        score: 10,
+        message: "Valid word, but not very related",
+        color: "#95a5a6",
+        emoji: "🤔"
+    });
 });
 
 
@@ -415,15 +507,32 @@ app.get('/leaderboard', (req, res) => {
 });
 
 app.post('/submit-score', express.json(), (req, res) => {
-    const { name, score } = req.body;
+    const { name, score, gamesPlayed, averageScore } = req.body;
     
     if (!name || typeof score !== 'number') {
         return res.status(400).json({ error: 'Invalid score submission' });
     }
     
-    leaderboard.push({ name, score, date: new Date().toISOString() });
+    // Update existing score or add new one
+    const existingEntry = leaderboard.find(entry => entry.name === name);
+    if (existingEntry) {
+        existingEntry.score = score;
+        existingEntry.gamesPlayed = gamesPlayed;
+        existingEntry.averageScore = averageScore;
+        existingEntry.lastUpdated = new Date().toISOString();
+    } else {
+        leaderboard.push({
+            name,
+            score,
+            gamesPlayed,
+            averageScore,
+            date: new Date().toISOString()
+        });
+    }
+    
+    // Sort by total score
     leaderboard.sort((a, b) => b.score - a.score);
-    leaderboard = leaderboard.slice(0, 100);
+    leaderboard = leaderboard.slice(0, 100); // Keep top 100
     
     fs.writeFile(
         path.join(__dirname, 'data/leaderboard.json'),
@@ -442,6 +551,8 @@ async function initServer() {
 
     try {
         await loadWordVectors();
+        const validWords = await validateDailyWords();
+        console.log(`Filtered daily words list to ${validWords.length} words with valid vectors`);
         
         // Only start server if vectors loaded successfully and server isn't already running
         if (!serverInitialized) {
@@ -468,6 +579,5 @@ async function initServer() {
     }
 }
 
-// Remove any other calls to loadWordVectors or app.listen
 // Just call initServer once
 initServer();

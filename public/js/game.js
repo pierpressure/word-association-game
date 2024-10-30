@@ -1,3 +1,50 @@
+class ScoreTracker {
+    constructor() {
+        this.storageKey = 'wordMasterStats';
+        this.stats = this.loadStats();
+    }
+
+    loadStats() {
+        const defaultStats = {
+            totalScore: 0,
+            gamesPlayed: 0,
+            averageScore: 0,
+            lastSubmittedDate: null,
+            playerName: null,
+            dailyScores: {} // Format: { "2024-10-28": 500, "2024-10-29": 750 }
+        };
+        
+        return JSON.parse(localStorage.getItem(this.storageKey)) || defaultStats;
+    }
+
+    saveStats() {
+        localStorage.setItem(this.storageKey, JSON.stringify(this.stats));
+    }
+
+    addScore(score, dateString) {
+        // Don't count the same day twice
+        if (this.stats.dailyScores[dateString]) {
+            return false;
+        }
+
+        this.stats.dailyScores[dateString] = score;
+        this.stats.totalScore += score;
+        this.stats.gamesPlayed++;
+        this.stats.averageScore = Math.round(this.stats.totalScore / this.stats.gamesPlayed);
+        this.saveStats();
+        return true;
+    }
+
+    getPlayerName() {
+        return this.stats.playerName;
+    }
+
+    setPlayerName(name) {
+        this.stats.playerName = name;
+        this.saveStats();
+    }
+}
+
 class WordGame {
     constructor() {
         this.MAX_GUESSES = 3;
@@ -11,6 +58,7 @@ class WordGame {
             hintsRevealed: 0,
             dateString: null  // Added for daily tracking
         };
+        this.scoreTracker = new ScoreTracker();
 
         // Check if already played today
         const lastPlayed = localStorage.getItem('lastPlayedDate');
@@ -496,6 +544,12 @@ async endGame(message) {
         localStorage.setItem('lastScore', finalScore.toString());
         localStorage.setItem('lastWord', this.gameState.targetWord);
         localStorage.setItem('hintsUsed', this.gameState.hintsRevealed.toString());
+        const dateString = this.gameState.dateString;
+
+        localStorage.setItem('lastPlayedDate', dateString);
+        localStorage.setItem('lastScore', finalScore.toString());
+
+
     
         const generateShareText = () => {
             const guessBlocks = Array(3).fill('⬜').map((block, i) => {
@@ -523,27 +577,30 @@ async endGame(message) {
         const shareText = generateShareText();
         localStorage.setItem('lastShareText', shareText);
         
-        // Check for high score
-        if (finalScore > this.gameState.highScore) {
-            this.gameState.highScore = finalScore;
-            localStorage.setItem('wordGameHighScore', finalScore.toString());
+        const isNewScore = this.scoreTracker.addScore(finalScore, dateString);
+        
+        // Check for high score and handle accumulated score submission
+        if (finalScore > this.gameState.highScore || !this.scoreTracker.getPlayerName()) {
+            this.gameState.highScore = Math.max(finalScore, this.gameState.highScore);
+            localStorage.setItem('wordGameHighScore', this.gameState.highScore.toString());
             
             try {
-                const name = prompt('New high score! Enter your name:');
+                const name = prompt(
+                    this.scoreTracker.getPlayerName() 
+                        ? 'New high score! Enter your name:'
+                        : 'Enter your name for the leaderboard:'
+                );
+                
                 if (name) {
-                    await fetch('/submit-score', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            name, 
-                            score: finalScore,
-                            dateString: this.gameState.dateString
-                        })
-                    });
+                    this.scoreTracker.setPlayerName(name);
+                    await this.submitAccumulatedScore();
                 }
             } catch (error) {
                 console.error('Error submitting score:', error);
             }
+        } else if (isNewScore) {
+            // Submit accumulated score update even if not a new high score
+            await this.submitAccumulatedScore();
         }
         
         // Create end game modal with close button
@@ -654,45 +711,96 @@ async endGame(message) {
         // Show leaderboard
         await this.showLeaderboard();
     }
+    
+    async submitAccumulatedScore() {
+        const stats = this.scoreTracker.stats;
+        if (!stats.playerName) return;
 
-    async showLeaderboard() {
         try {
-            const response = await fetch('/leaderboard');
-            const leaderboard = await response.json();
-            
-            const leaderboardElement = this.createAnimatedElement(
-                'div',
-                'leaderboard',
-                `
-                    <h3>Top Scores</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th>Name</th>
-                                <th>Score</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${leaderboard.map((entry, index) => `
-                                <tr class="${entry.score === this.gameState.score ? 'current-score' : ''}">
-                                    <td>${index + 1}</td>
-                                    <td>${entry.name}</td>
-                                    <td>${entry.score}</td>
-                                    <td>${new Date(entry.date).toLocaleDateString()}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `,
-                this.gameContainer
-            );
+            await fetch('/submit-score', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: stats.playerName,
+                    score: stats.totalScore,
+                    gamesPlayed: stats.gamesPlayed,
+                    averageScore: stats.averageScore,
+                    dateString: this.gameState.dateString
+                })
+            });
         } catch (error) {
-            console.error('Error showing leaderboard:', error);
+            console.error('Error submitting accumulated score:', error);
         }
     }
 
+async showLeaderboard() {
+    try {
+        const response = await fetch('/leaderboard');
+        const leaderboard = await response.json();
+        
+        const leaderboardElement = this.createAnimatedElement(
+            'div',
+            'leaderboard',
+            `
+                <h3>Top Players</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Name</th>
+                            <th>Total Score</th>
+                            <th>Games</th>
+                            <th>Average</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${leaderboard.map((entry, index) => `
+                            <tr class="${entry.name === this.scoreTracker.getPlayerName() ? 'current-player' : ''}">
+                                <td>${index + 1}</td>
+                                <td>${entry.name}</td>
+                                <td>${entry.score.toLocaleString()}</td>
+                                <td>${entry.gamesPlayed || 1}</td>
+                                <td>${entry.averageScore ? 
+                                    Math.round(entry.averageScore).toLocaleString() : 
+                                    Math.round(entry.score).toLocaleString()
+                                }</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                
+                <div class="your-stats">
+                    <h4>Your Statistics</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">Total Score</div>
+                            <div class="stat-value">${this.scoreTracker.stats.totalScore.toLocaleString()}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Games Played</div>
+                            <div class="stat-value">${this.scoreTracker.stats.gamesPlayed}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Average Score</div>
+                            <div class="stat-value">${Math.round(this.scoreTracker.stats.averageScore).toLocaleString()}</div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            this.gameContainer
+        );
+        
+        // Highlight current player's row with animation if they're on the leaderboard
+        const currentPlayerRow = leaderboardElement.querySelector('.current-player');
+        if (currentPlayerRow) {
+            currentPlayerRow.style.backgroundColor = '#6366f120';
+            currentPlayerRow.style.fontWeight = '600';
+        }
+
+    } catch (error) {
+        console.error('Error showing leaderboard:', error);
+    }
+}
     // Helper function to create animated elements
     createAnimatedElement(type, className, innerHTML, parent, styles = {}) {
         const element = document.createElement(type);

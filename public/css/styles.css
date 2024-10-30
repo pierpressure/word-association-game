@@ -437,7 +437,86 @@ button:disabled {
     border-radius: 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
+/* Add to your styles.css */
+.leaderboard {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+}
 
+.leaderboard h3 {
+    margin-bottom: 1rem;
+    color: #1a2027;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.leaderboard table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+}
+
+.leaderboard th,
+.leaderboard td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.leaderboard th {
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.leaderboard tr:last-child td {
+    border-bottom: none;
+}
+
+.current-player {
+    transition: background-color 0.3s ease;
+}
+
+.your-stats {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #f1f5f9;
+}
+
+.your-stats h4 {
+    color: #1a2027;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.stat-item {
+    background: #f8fafc;
+    padding: 1rem;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.stat-label {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    color: #1a2027;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
 .score-info {
     display: flex;
     justify-content: space-between;
