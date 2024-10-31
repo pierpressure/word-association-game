@@ -60,85 +60,97 @@ class WordGame {
         };
         this.scoreTracker = new ScoreTracker();
 
-        // Check if already played today
-        const lastPlayed = localStorage.getItem('lastPlayedDate');
-        const today = new Date().toISOString().split('T')[0];
-        
-        if (lastPlayed === today) {
-            this.showAlreadyPlayedMessage();
-        } else {
-            this.initializeDOM();
-            this.attachEventListeners();
-            this.initGame();
-        }
+    const lastPlayed = localStorage.getItem('lastPlayedDate');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayString = today.toISOString().split('T')[0];
+    
+    if (lastPlayed === todayString) {
+        this.showAlreadyPlayedMessage();
+        return;  // Important: return before any DOM initialization
     }
 
-    showAlreadyPlayedMessage() {
-        const container = document.querySelector('.container');
-        if (!container) return;
+    // Only do these if we haven't played today
+    this.initializeDOM();
+    this.attachEventListeners();
+    this.initGame();
+}
 
-        const lastScore = parseInt(localStorage.getItem('lastScore') || '0');
-        const lastWord = localStorage.getItem('lastWord');
-        const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
-        const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
-        
-        // Generate guess blocks for share display
-        const guessBlocks = Array(3).fill('⬜').map((block, i) => {
-            if (i < guessHistory.length) return '🟦';
-            return block;
-        });
-        const hintBlocks = Array(3).fill('⬜').map((block, i) => {
-            if (i < hintsUsed) return '💡';
-            return block;
-        });
+ showAlreadyPlayedMessage() {
+    const container = document.querySelector('.container');
+    if (!container) return;
 
-        container.innerHTML = `
-            <div class="already-played-message">
-                <h2>You've already played today!</h2>
-                <div class="countdown" id="countdown"></div>
+    // Disable any existing game elements
+    const gameContainer = document.getElementById('game-container');
+    if (gameContainer) {
+        gameContainer.style.display = 'none';
+    }
 
-                <div class="game-summary">
-                    <p class="target-word">Today's word was: <span class="highlight">${lastWord}</span></p>
+    const guessForm = document.getElementById('guess-form');
+    if (guessForm) {
+        guessForm.style.display = 'none';
+    }
 
-                    <div class="guess-history">
-                        <h3>Your Guesses:</h3>
-                        ${guessHistory.map(guess => `
-                            <div class="guess-item" style="background: ${guess.color}20">
-                                <div class="guess-word">${guess.word}</div>
-                                <div class="guess-feedback">
-                                    <span class="guess-score">Match: ${guess.score}%</span>
-                                    <span class="points-earned">+${guess.points} points</span>
-                                    <span class="guess-message">${guess.message}</span>
-                                    <span class="emoji">${guess.emoji}</span>
-                                </div>
+    const lastScore = parseInt(localStorage.getItem('lastScore') || '0');
+    const lastWord = localStorage.getItem('lastWord');
+    const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
+    const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
+    
+    // Generate guess blocks for share display
+    const guessBlocks = Array(3).fill('⬜').map((block, i) => {
+        if (i < guessHistory.length) return '🟦';
+        return block;
+    });
+    const hintBlocks = Array(3).fill('⬜').map((block, i) => {
+        if (i < hintsUsed) return '💡';
+        return block;
+    });
+
+    // Create already played content with a dedicated leaderboard container
+    container.innerHTML = `
+        <div class="already-played-message">
+            <h2>You've already played today!</h2>
+            <div class="countdown" id="countdown"></div>
+
+            <div class="game-summary">
+                <p class="target-word">Today's word was: <span class="highlight">${lastWord}</span></p>
+
+                <div class="guess-history">
+                    <h3>Your Guesses:</h3>
+                    ${guessHistory.map(guess => `
+                        <div class="guess-item" style="background: ${guess.color}20">
+                            <div class="guess-word">${guess.word}</div>
+                            <div class="guess-feedback">
+                                <span class="guess-score">Match: ${guess.score}%</span>
+                                <span class="points-earned">+${guess.points} points</span>
+                                <span class="guess-message">${guess.message}</span>
+                                <span class="emoji">${guess.emoji}</span>
                             </div>
-                        `).join('')}
-                    </div>
-
-                    <div class="share-section">
-                        <button class="share-button" onclick="navigator.clipboard.writeText(localStorage.getItem('lastShareText') || '').then(() => {
-                            document.querySelector('.share-tooltip').classList.add('show');
-                            setTimeout(() => {
-                                document.querySelector('.share-tooltip').classList.remove('show');
-                            }, 2000);
-                        })">Share Score</button>
-                        <div class="share-tooltip">Copied to clipboard!</div>
-                    </div>
+                        </div>
+                    `).join('')}
                 </div>
 
-                <div id="leaderboard-section">
-                    <!-- Leaderboard will be inserted here -->
+                <div class="share-section">
+                    <button class="share-button" onclick="navigator.clipboard.writeText(localStorage.getItem('lastShareText') || '').then(() => {
+                        document.querySelector('.share-tooltip').classList.add('show');
+                        setTimeout(() => {
+                            document.querySelector('.share-tooltip').classList.remove('show');
+                        }, 2000);
+                    })">Share Score</button>
+                    <div class="share-tooltip">Copied to clipboard!</div>
                 </div>
-            </div>`;
+            </div>
 
-        // Start countdown to next word
-        this.updateCountdown();
-        setInterval(() => this.updateCountdown(), 1000);
+            <div id="already-played-leaderboard"></div>
+        </div>`;
 
-        // Show leaderboard in the dedicated section
-        this.showLeaderboard();
-    }
+    // Start countdown to next word
+    this.updateCountdown();
+    setInterval(() => this.updateCountdown(), 1000);
 
+    // Show leaderboard in the new dedicated container
+    this.showLeaderboard('already-played-leaderboard');  // Pass the new container ID
+}
     updateCountdown() {
         const now = new Date();
         const tomorrow = new Date(now);
@@ -520,9 +532,7 @@ async endGame(message) {
         localStorage.setItem('lastScore', finalScore.toString());
         localStorage.setItem('lastWord', this.gameState.targetWord);
         localStorage.setItem('hintsUsed', this.gameState.hintsRevealed.toString());
-        const dateString = this.gameState.dateString;
 
-        localStorage.setItem('lastPlayedDate', dateString);
         localStorage.setItem('lastScore', finalScore.toString());
 
 
@@ -711,7 +721,7 @@ async endGame(message) {
         }
     }
 
-async showLeaderboard() {
+async showLeaderboard(containerId = null) {
     try {
         const response = await fetch('/leaderboards');
         const { monthly, hallOfFame } = await response.json();
@@ -719,6 +729,16 @@ async showLeaderboard() {
         const MIN_GAMES_FOR_HOF = 5;
         const gamesPlayed = this.scoreTracker.stats.gamesPlayed;
         const gamesNeeded = MIN_GAMES_FOR_HOF - gamesPlayed;
+        
+        // Get the container - either the specified one or the game container
+        const container = containerId ? 
+            document.getElementById(containerId) : 
+            this.gameContainer;
+
+        if (!container) {
+            console.error('Leaderboard container not found');
+            return;
+        }
         
         const leaderboardElement = this.createAnimatedElement(
             'div',
@@ -798,7 +818,7 @@ async showLeaderboard() {
                     </div>
                 </div>
             `,
-            this.gameContainer
+            container
         );
         
         // Highlight current player's rows
