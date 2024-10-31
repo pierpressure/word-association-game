@@ -35,41 +35,56 @@ let serverInitialized = false;
 let vectorsLoaded = false;
 
 // Add leaderboard storage
-let leaderboard = [];
+// let leaderboard = [];
+let monthlyLeaderboard = [];
+let hallOfFame = [];
 
-async function initLeaderboard() {
-    const leaderboardPath = path.join(__dirname, 'data/leaderboard.json');
+async function initLeaderboards() {
     try {
-        try {
-            const data = await fs.readFile(leaderboardPath, 'utf8');
-            const parsed = JSON.parse(data);
-            
-            if (Array.isArray(parsed)) {
-                leaderboard = parsed.filter(entry => 
-                    entry && 
-                    typeof entry === 'object' && 
-                    'name' in entry &&
-                    'score' in entry
-                );
-            } else {
-                leaderboard = [];
-            }
-        } catch (readError) {
-            // File doesn't exist, create empty leaderboard
-            leaderboard = [];
-        }
+        // Load both leaderboards
+        const monthly = await fs.readFile(path.join(__dirname, 'data/monthly-leaderboard.json'), 'utf8')
+            .catch(() => '[]');
+        const allTime = await fs.readFile(path.join(__dirname, 'data/hall-of-fame.json'), 'utf8')
+            .catch(() => '[]');
         
-        leaderboard.sort((a, b) => b.score - a.score);
+        monthlyLeaderboard = JSON.parse(monthly);
+        hallOfFame = JSON.parse(allTime);
         
-        await fs.writeFile(
-            leaderboardPath,
-            JSON.stringify(leaderboard, null, 2)
-        );
+        // Clean old monthly entries (older than current month)
+        const currentMonth = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+        monthlyLeaderboard = monthlyLeaderboard.filter(entry => {
+            const entryDate = new Date(entry.lastUpdated);
+            return entryDate.getMonth() === currentMonth && 
+                   entryDate.getFullYear() === currentYear;
+        });
         
-        console.log('Leaderboard initialized with', leaderboard.length, 'entries');
+        // Sort both leaderboards
+        monthlyLeaderboard.sort((a, b) => b.totalScore - a.totalScore);
+        hallOfFame.sort((a, b) => b.averageScore - a.averageScore);
+        
+        // Save cleaned data
+        await saveLeaderboards();
+        
     } catch (error) {
-        console.error('Error managing leaderboard:', error);
-        leaderboard = [];
+        console.error('Error initializing leaderboards:', error);
+        monthlyLeaderboard = [];
+        hallOfFame = [];
+    }
+}
+
+async function saveLeaderboards() {
+    try {
+        await fs.writeFile(
+            path.join(__dirname, 'data/monthly-leaderboard.json'),
+            JSON.stringify(monthlyLeaderboard, null, 2)
+        );
+        await fs.writeFile(
+            path.join(__dirname, 'data/hall-of-fame.json'),
+            JSON.stringify(hallOfFame, null, 2)
+        );
+    } catch (error) {
+        console.error('Error saving leaderboards:', error);
     }
 }
 
@@ -525,11 +540,13 @@ app.get('/get-target-word', (req, res) => {
     res.json({ word, hints, dateString, wordNumber });
 });
 
-app.get('/leaderboard', (req, res) => {
-    console.log('Leaderboard request received');
-    console.log('Current leaderboard:', leaderboard);
-    res.json(leaderboard.slice(0, 10));
+app.get('/leaderboards', (req, res) => {
+    res.json({
+        monthly: monthlyLeaderboard.slice(0, 10),
+        hallOfFame: hallOfFame.slice(0, 10)
+    });
 });
+
 app.post('/submit-score', express.json(), (req, res) => {
     const { name, score, gamesPlayed, averageScore } = req.body;
     
@@ -537,31 +554,51 @@ app.post('/submit-score', express.json(), (req, res) => {
         return res.status(400).json({ error: 'Invalid score submission' });
     }
     
-    // Update existing score or add new one
-    const existingEntry = leaderboard.find(entry => entry.name === name);
-    if (existingEntry) {
-        existingEntry.score = score;
-        existingEntry.gamesPlayed = gamesPlayed;
-        existingEntry.averageScore = averageScore;
-        existingEntry.lastUpdated = new Date().toISOString();
+    const now = new Date();
+    
+    // Update monthly leaderboard
+    const monthlyEntry = monthlyLeaderboard.find(entry => entry.name === name);
+    if (monthlyEntry) {
+        monthlyEntry.totalScore += score;
+        monthlyEntry.gamesPlayed = gamesPlayed;
+        monthlyEntry.lastUpdated = now.toISOString();
     } else {
-        leaderboard.push({
+        monthlyLeaderboard.push({
             name,
-            score,
-            gamesPlayed,
-            averageScore,
-            date: new Date().toISOString()
+            totalScore: score,
+            gamesPlayed: 1,
+            lastUpdated: now.toISOString()
         });
     }
     
-    // Sort by total score
-    leaderboard.sort((a, b) => b.score - a.score);
-    leaderboard = leaderboard.slice(0, 100); // Keep top 100
+    // Update Hall of Fame if qualified
+    const MIN_GAMES_FOR_HOF = 5; // Require minimum games to qualify
+    if (gamesPlayed >= MIN_GAMES_FOR_HOF) {
+        const hofEntry = hallOfFame.find(entry => entry.name === name);
+        if (hofEntry) {
+            if (averageScore > hofEntry.averageScore) {
+                hofEntry.averageScore = averageScore;
+                hofEntry.gamesPlayed = gamesPlayed;
+                hofEntry.lastUpdated = now.toISOString();
+            }
+        } else {
+            hallOfFame.push({
+                name,
+                averageScore,
+                gamesPlayed,
+                lastUpdated: now.toISOString()
+            });
+        }
+    }
     
-    fs.writeFile(
-        path.join(__dirname, 'data/leaderboard.json'),
-        JSON.stringify(leaderboard, null, 2)
-    ).catch(console.error);
+    // Sort and trim leaderboards
+    monthlyLeaderboard.sort((a, b) => b.totalScore - a.totalScore);
+    hallOfFame.sort((a, b) => b.averageScore - a.averageScore);
+    
+    monthlyLeaderboard = monthlyLeaderboard.slice(0, 100);
+    hallOfFame = hallOfFame.slice(0, 50);
+    
+    saveLeaderboards();
     
     res.json({ success: true });
 });
@@ -576,9 +613,7 @@ async function initServer() {
     try {
         await loadWordVectors();
         const validWords = await validateDailyWords();
-        console.log(`Filtered daily words list to ${validWords.length} words with valid vectors`);
-        
-        await initLeaderboard();
+        await initLeaderboards();  // Note the 's' at the end
         
         // Only start server if vectors loaded successfully and server isn't already running
         if (!serverInitialized) {

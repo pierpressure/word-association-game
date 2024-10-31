@@ -111,8 +111,8 @@ button:disabled {
     background: white;
     padding: 2rem;
     border-radius: 16px;
-    text-align: center;
     box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    margin-bottom: 2rem;
 }
 
 .countdown {
@@ -437,12 +437,22 @@ button:disabled {
     border-radius: 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
-/* Add to your styles.css */
+
+#leaderboard-section {
+    margin-top: 2rem;
+}
+
+.leaderboard-container {
+    margin-top: 2rem;
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+}
+
 .leaderboard {
     background: white;
     border-radius: 16px;
     padding: 1.5rem;
-    margin-top: 2rem;
     box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
 
@@ -451,12 +461,14 @@ button:disabled {
     color: #1a2027;
     font-size: 1.25rem;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .leaderboard table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 1.5rem;
 }
 
 .leaderboard th,
@@ -470,10 +482,6 @@ button:disabled {
     font-weight: 600;
     color: #6b7280;
     font-size: 0.875rem;
-}
-
-.leaderboard tr:last-child td {
-    border-bottom: none;
 }
 
 .current-player {
@@ -1084,6 +1092,31 @@ button:disabled {
     background: #f1f5f9;
     transform: translateY(-2px);
 }
+.qualification-message {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    color: #0369a1;
+    font-size: 0.95rem;
+    text-align: center;
+}
+
+.progress-bar {
+    background: #e0f2fe;
+    height: 8px;
+    border-radius: 4px;
+    margin-top: 0.5rem;
+    overflow: hidden;
+}
+
+.progress {
+    background: #0ea5e9;
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
 
 @keyframes slideUp {
     from {
@@ -1172,5 +1205,17 @@ button:disabled {
     
     .game-core {
         grid-column: 1;
+    }
+}
+/*Media for leaderboard*/
+@media (min-width: 768px) {
+    .leaderboard-container {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .leaderboard {
+        flex: 1;
+        min-width: 300px;
     }
 }

@@ -98,10 +98,7 @@ class WordGame {
                 <div class="countdown" id="countdown"></div>
 
                 <div class="game-summary">
-                    <div class="end-game-header">
-                        <div class="result-emoji">${lastScore >= 900 ? '🎯' : '🎲'}</div>
-                        <p class="target-word">Today's word was: <span class="highlight">${lastWord}</span></p>
-                    </div>
+                    <p class="target-word">Today's word was: <span class="highlight">${lastWord}</span></p>
 
                     <div class="guess-history">
                         <h3>Your Guesses:</h3>
@@ -118,49 +115,28 @@ class WordGame {
                         `).join('')}
                     </div>
 
-                    <div class="score-showcase">
-                        <div class="final-score-display">
-                            <span class="score-label">Final Score</span>
-                            <span class="score-value">${lastScore}</span>
-                        </div>
-                        
-                        <div class="share-preview">
-                            <div class="share-line">WordMaster ${new Date().toISOString().split('T')[0]}</div>
-                            <div class="share-line">Score: ${lastScore}</div>
-                            <div class="share-line">Guesses: ${guessBlocks.join('')}</div>
-                            <div class="share-line">Hints: ${hintBlocks.join('')}</div>
-                        </div>
-                    </div>
-
-                    <div class="statistics">
-                        <h3>Your Stats</h3>
-                        <p>High Score: ${this.gameState.highScore}</p>
-                        <p>Last Score: ${lastScore}</p>
-                    </div>
-
                     <div class="share-section">
                         <button class="share-button" onclick="navigator.clipboard.writeText(localStorage.getItem('lastShareText') || '').then(() => {
                             document.querySelector('.share-tooltip').classList.add('show');
                             setTimeout(() => {
                                 document.querySelector('.share-tooltip').classList.remove('show');
                             }, 2000);
-                        })">
-                            <span class="button-content">
-                                <svg class="share-icon" width="20" height="20" viewBox="0 0 24 24">
-                                    <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
-                                </svg>
-                                Share Score
-                            </span>
-                        </button>
+                        })">Share Score</button>
                         <div class="share-tooltip">Copied to clipboard!</div>
                     </div>
                 </div>
-            </div>
-        `;
+
+                <div id="leaderboard-section">
+                    <!-- Leaderboard will be inserted here -->
+                </div>
+            </div>`;
 
         // Start countdown to next word
         this.updateCountdown();
         setInterval(() => this.updateCountdown(), 1000);
+
+        // Show leaderboard in the dedicated section
+        this.showLeaderboard();
     }
 
     updateCountdown() {
@@ -737,47 +713,78 @@ async endGame(message) {
 
 async showLeaderboard() {
     try {
-        console.log('Fetching leaderboard...');
-        const response = await fetch('/leaderboard');
-        const leaderboard = await response.json();
-        console.log('Received leaderboard:', leaderboard);
+        const response = await fetch('/leaderboards');
+        const { monthly, hallOfFame } = await response.json();
+        
+        const MIN_GAMES_FOR_HOF = 5;
+        const gamesPlayed = this.scoreTracker.stats.gamesPlayed;
+        const gamesNeeded = MIN_GAMES_FOR_HOF - gamesPlayed;
         
         const leaderboardElement = this.createAnimatedElement(
             'div',
-            'leaderboard',
+            'leaderboard-container',
             `
-                <h3>Top Players</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>Name</th>
-                            <th>Total Score</th>
-                            <th>Games</th>
-                            <th>Average</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${leaderboard.map((entry, index) => `
-                            <tr class="${entry.name === this.scoreTracker.getPlayerName() ? 'current-player' : ''}">
-                                <td>${index + 1}</td>
-                                <td>${entry.name}</td>
-                                <td>${entry.score.toLocaleString()}</td>
-                                <td>${entry.gamesPlayed || 1}</td>
-                                <td>${entry.averageScore ? 
-                                    Math.round(entry.averageScore).toLocaleString() : 
-                                    Math.round(entry.score).toLocaleString()
-                                }</td>
+                <div class="leaderboard monthly">
+                    <h3>🔥 This Month's Champions</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Name</th>
+                                <th>Total Score</th>
+                                <th>Games</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            ${monthly.map((entry, index) => `
+                                <tr class="${entry.name === this.scoreTracker.getPlayerName() ? 'current-player' : ''}">
+                                    <td>${index + 1}</td>
+                                    <td>${entry.name}</td>
+                                    <td>${entry.totalScore.toLocaleString()}</td>
+                                    <td>${entry.gamesPlayed}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="leaderboard hall-of-fame">
+                    <h3>🏆 Hall of Fame</h3>
+                    ${gamesNeeded > 0 ? `
+                        <div class="qualification-message">
+                            Play ${gamesNeeded} more game${gamesNeeded === 1 ? '' : 's'} to qualify for Hall of Fame!
+                            <div class="progress-bar">
+                                <div class="progress" style="width: ${(gamesPlayed/MIN_GAMES_FOR_HOF) * 100}%"></div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Name</th>
+                                <th>Average</th>
+                                <th>Games</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${hallOfFame.map((entry, index) => `
+                                <tr class="${entry.name === this.scoreTracker.getPlayerName() ? 'current-player' : ''}">
+                                    <td>${index + 1}</td>
+                                    <td>${entry.name}</td>
+                                    <td>${Math.round(entry.averageScore).toLocaleString()}</td>
+                                    <td>${entry.gamesPlayed}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
                 
                 <div class="your-stats">
                     <h4>Your Statistics</h4>
                     <div class="stats-grid">
                         <div class="stat-item">
-                            <div class="stat-label">Total Score</div>
+                            <div class="stat-label">Monthly Score</div>
                             <div class="stat-value">${this.scoreTracker.stats.totalScore.toLocaleString()}</div>
                         </div>
                         <div class="stat-item">
@@ -794,15 +801,14 @@ async showLeaderboard() {
             this.gameContainer
         );
         
-        // Highlight current player's row with animation if they're on the leaderboard
-        const currentPlayerRow = leaderboardElement.querySelector('.current-player');
-        if (currentPlayerRow) {
-            currentPlayerRow.style.backgroundColor = '#6366f120';
-            currentPlayerRow.style.fontWeight = '600';
-        }
-
+        // Highlight current player's rows
+        const currentPlayerRows = leaderboardElement.querySelectorAll('.current-player');
+        currentPlayerRows.forEach(row => {
+            row.style.backgroundColor = '#6366f120';
+            row.style.fontWeight = '600';
+        });
     } catch (error) {
-        console.error('Error showing leaderboard:', error);
+        console.error('Error showing leaderboards:', error);
     }
 }
     // Helper function to create animated elements
