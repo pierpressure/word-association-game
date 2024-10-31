@@ -56,27 +56,94 @@ class WordGame {
             streak: 0,
             hints: [],
             hintsRevealed: 0,
-            dateString: null  // Added for daily tracking
+            dateString: null,  // Initialize dateString
+            wordNumber: null   // Also track word number if needed
         };
         this.scoreTracker = new ScoreTracker();
 
-    const lastPlayed = localStorage.getItem('lastPlayedDate');
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayString = today.toISOString().split('T')[0];
-    
-    if (lastPlayed === todayString) {
-        this.showAlreadyPlayedMessage();
-        return;  // Important: return before any DOM initialization
+        const lastPlayed = localStorage.getItem('lastPlayedDate');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayString = today.toISOString().split('T')[0];
+        
+        if (lastPlayed === todayString) {
+            this.showAlreadyPlayedMessage();
+            return;
+        }
+
+        this.initializeDOM();
+        this.attachEventListeners();
+        this.initGame();
     }
 
-    // Only do these if we haven't played today
-    this.initializeDOM();
-    this.attachEventListeners();
-    this.initGame();
-}
+updateGameContentForCompletion() {
+    const container = document.querySelector('.container');
+    const gameContainer = document.getElementById('game-container');
+    const guessForm = document.getElementById('guess-form');
+    const guessesContainer = document.getElementById('guesses-container');
+    
+    // Hide the form
+    if (guessForm) {
+        guessForm.style.display = 'none';
+    }
 
- showAlreadyPlayedMessage() {
+    // Clear or hide the original guesses container
+    if (guessesContainer) {
+        guessesContainer.style.display = 'none';
+    }
+
+    // Get the stored data
+    const lastScore = parseInt(localStorage.getItem('lastScore') || '0');
+    const lastWord = localStorage.getItem('lastWord');
+    const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
+    const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
+    const shareText = localStorage.getItem('lastShareText');
+
+    // Create the completion content
+    const completionContent = document.createElement('div');
+    completionContent.className = 'game-summary';
+    completionContent.innerHTML = `
+        <div class="target-word">Today's word was: <span class="highlight">${lastWord}</span></div>
+
+        <div class="guess-history">
+            <h3>Your Guesses:</h3>
+            ${guessHistory.map(guess => `
+                <div class="guess-item" style="background: ${guess.color}20">
+                    <div class="guess-word">${guess.word}</div>
+                    <div class="guess-feedback">
+                        <span class="guess-score">Match: ${guess.score}%</span>
+                        <span class="points-earned">+${guess.points} points</span>
+                        <span class="guess-message">${guess.message}</span>
+                        <span class="emoji">${guess.emoji}</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+
+        <div class="share-section">
+            <button class="share-button" onclick="navigator.clipboard.writeText('${shareText}').then(() => {
+                document.querySelector('.share-tooltip').classList.add('show');
+                setTimeout(() => {
+                    document.querySelector('.share-tooltip').classList.remove('show');
+                }, 2000);
+            })">
+                <div class="button-content">
+                    <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
+                    </svg>
+                    <span>Share Score!</span>
+                </div>
+            </button>
+            <div class="share-tooltip">Copied to clipboard!</div>
+        </div>
+    `;
+
+    // Add the completion content after the guesses container
+    if (guessesContainer && guessesContainer.parentNode) {
+        guessesContainer.parentNode.insertBefore(completionContent, guessesContainer.nextSibling);
+    }
+}
+showAlreadyPlayedMessage() {
     const container = document.querySelector('.container');
     if (!container) return;
 
@@ -95,18 +162,8 @@ class WordGame {
     const lastWord = localStorage.getItem('lastWord');
     const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
     const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
-    
-    // Generate guess blocks for share display
-    const guessBlocks = Array(3).fill('⬜').map((block, i) => {
-        if (i < guessHistory.length) return '🟦';
-        return block;
-    });
-    const hintBlocks = Array(3).fill('⬜').map((block, i) => {
-        if (i < hintsUsed) return '💡';
-        return block;
-    });
+    const shareText = localStorage.getItem('lastShareText');
 
-    // Create already played content with a dedicated leaderboard container
     container.innerHTML = `
         <div class="already-played-message">
             <h2>You've already played today!</h2>
@@ -131,12 +188,19 @@ class WordGame {
                 </div>
 
                 <div class="share-section">
-                    <button class="share-button" onclick="navigator.clipboard.writeText(localStorage.getItem('lastShareText') || '').then(() => {
+                    <button class="share-button" onclick="navigator.clipboard.writeText('${shareText}').then(() => {
                         document.querySelector('.share-tooltip').classList.add('show');
                         setTimeout(() => {
                             document.querySelector('.share-tooltip').classList.remove('show');
                         }, 2000);
-                    })">Share Score</button>
+                    })">
+                        <div class="button-content">
+                            <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
+                                <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
+                            </svg>
+                            <span>Share Score!</span>
+                        </div>
+                    </button>
                     <div class="share-tooltip">Copied to clipboard!</div>
                 </div>
             </div>
@@ -149,7 +213,7 @@ class WordGame {
     setInterval(() => this.updateCountdown(), 1000);
 
     // Show leaderboard in the new dedicated container
-    this.showLeaderboard('already-played-leaderboard');  // Pass the new container ID
+    this.showLeaderboard('already-played-leaderboard');
 }
     updateCountdown() {
         const now = new Date();
@@ -235,15 +299,19 @@ class WordGame {
             const response = await fetch('/get-target-word');
             const data = await response.json();
             
+            // Store all the data from server response
             this.gameState = {
                 ...this.gameState,
                 targetWord: data.word,
                 hints: data.hints,
+                dateString: data.dateString,    // Make sure we store this
+                wordNumber: data.wordNumber,    // And this if needed
                 guessesLeft: this.MAX_GUESSES,
                 score: 0,
-                streak: 0,
-                dateString: data.dateString  // Store the date string from server
+                streak: 0
             };
+            
+            console.log('Game initialized with date:', this.gameState.dateString); // Debug log
             
             this.loadingElement.style.display = 'none';
             this.gameContainer.style.display = 'block';
@@ -380,86 +448,100 @@ revealHint(index, button, isFree = false) {
         hintContent.style.transform = 'translateY(0)';
     });
 }
-async makeGuess() {
-    const guess = this.guessInput.value.trim().toLowerCase();
-    if (!guess) return;
+    async makeGuess() {
+        const guess = this.guessInput.value.trim().toLowerCase();
+        if (!guess) return;
 
-    try {
-        const response = await fetch(`/calculate-score?guess=${guess}&target=${this.gameState.targetWord}`);
-        const data = await response.json();
-        
-        // If word is not valid, show error but don't count as a guess
-        if (data.score === null) {
-            const errorElement = this.createAnimatedElement(
+        try {
+            const response = await fetch(`/calculate-score?guess=${guess}&target=${this.gameState.targetWord}`);
+            const data = await response.json();
+            
+            // // Debug logs
+            // console.log('Guess:', guess);
+            // console.log('Score:', data.score);
+            // console.log('Guesses left:', this.gameState.guessesLeft);
+            // console.log('Game state:', this.gameState);
+            
+            // If word is not valid, show error but don't count as a guess
+            if (data.score === null) {
+                const errorElement = this.createAnimatedElement(
+                    'div',
+                    'guess-error',
+                    `<div class="guess-feedback">
+                        <span class="guess-message">${data.message}</span>
+                        <span class="emoji">${data.emoji}</span>
+                    </div>`,
+                    this.guessesContainer
+                );
+                
+                setTimeout(() => {
+                    errorElement.style.opacity = '0';
+                    setTimeout(() => errorElement.remove(), 300);
+                }, 2000);
+
+                this.guessInput.value = '';
+                this.guessInput.focus();
+                return;
+            }
+            
+            // Calculate guess points based on remaining guesses and score
+            let guessPoints = this.calculateGuessPoints(data.score);
+            
+            // Store the guess data
+            const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
+            guessHistory.push({
+                word: guess,
+                score: data.score,
+                points: guessPoints,
+                message: data.message,
+                emoji: data.emoji,
+                color: data.color
+            });
+            localStorage.setItem('guessHistory', JSON.stringify(guessHistory));
+            
+            // Create guess element with animation
+            const guessElement = this.createAnimatedElement(
                 'div',
-                'guess-error',
-                `<div class="guess-feedback">
+                'guess-item',
+                `<div class="guess-word">${guess}</div>
+                <div class="guess-feedback">
+                    <span class="guess-score">Match: ${data.score}%</span>
+                    <span class="points-earned">+${guessPoints} points</span>
                     <span class="guess-message">${data.message}</span>
                     <span class="emoji">${data.emoji}</span>
                 </div>`,
-                this.guessesContainer
+                this.guessesContainer,
+                { backgroundColor: `${data.color}20` }
             );
             
-            setTimeout(() => {
-                errorElement.style.opacity = '0';
-                setTimeout(() => errorElement.remove(), 300);
-            }, 2000);
-
+            // Update game state
+            this.gameState.score += guessPoints;
+            this.gameState.guessesLeft--;
+            this.gameState.streak = data.score >= 70 ? this.gameState.streak + 1 : 0;
+            
+            // Clear input and update display
             this.guessInput.value = '';
-            this.guessInput.focus();
-            return;
+            this.updateDisplay();
+            
+            // Check win/lose conditions
+            if (data.score === 100 || this.gameState.guessesLeft === 0) {
+                // console.log('Game ending condition met:', 
+                (data.score === 100 ? 'Perfect match' : 'No guesses left');
+                
+                this.applyFinalScore(data.score === 100);
+                
+                // Disable input immediately
+                this.guessInput.disabled = true;
+                this.guessForm.querySelector('button').disabled = true;
+                
+                await this.endGame(data.score === 100 ? 'You got it!' : 'Game Over!');
+                return;
+            }
+        } catch (error) {
+            console.error('Error making guess:', error);
+            this.guessInput.classList.add('error');
         }
-        
-        // Calculate guess points based on remaining guesses and score
-        let guessPoints = this.calculateGuessPoints(data.score);
-        
-        // Store the guess data
-        const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
-        guessHistory.push({
-            word: guess,
-            score: data.score,
-            points: guessPoints,
-            message: data.message,
-            emoji: data.emoji,
-            color: data.color
-        });
-        localStorage.setItem('guessHistory', JSON.stringify(guessHistory));
-        
-        // Create guess element with animation
-        const guessElement = this.createAnimatedElement(
-            'div',
-            'guess-item',
-            `<div class="guess-word">${guess}</div>
-            <div class="guess-feedback">
-                <span class="guess-score">Match: ${data.score}%</span>
-                <span class="points-earned">+${guessPoints} points</span>
-                <span class="guess-message">${data.message}</span>
-                <span class="emoji">${data.emoji}</span>
-            </div>`,
-            this.guessesContainer,
-            { backgroundColor: `${data.color}20` }
-        );
-        
-        // Update game state
-        this.gameState.score += guessPoints;
-        this.gameState.guessesLeft--;
-        this.gameState.streak = data.score >= 70 ? this.gameState.streak + 1 : 0;
-        
-        // Clear input and update display
-        this.guessInput.value = '';
-        this.updateDisplay();
-        
-        // Check win/lose conditions
-        if (data.score === 100 || this.gameState.guessesLeft === 0) {
-            this.applyFinalScore(data.score === 100);
-            this.endGame(data.score === 100 ? 'You got it!' : 'Game Over!');
-        }
-    } catch (error) {
-        console.error('Error making guess:', error);
-        this.guessInput.classList.add('error');
     }
-}
-
 calculateGuessPoints(matchScore) {
     // Base points for the guess quality
     let points = 0;
@@ -518,25 +600,26 @@ applyFinalScore(isWin) {
     };
 }
 // Update endGame method in game.js
-async endGame(message) {
+    async endGame(message) {
         clearInterval(this.timerInterval);
         
         const finalScore = this.gameState.score;
         const hintsUsed = this.gameState.hintsRevealed;
         const breakdown = this.gameState.scoreBreakdown;
         const isWin = message === 'You got it!';
+        
+        // Use the dateString from gameState
+        if (!this.gameState.dateString) {
+            console.error('Missing dateString in gameState:', this.gameState);
+            return;
+        }
 
         // Save completion state for today
-        const today = new Date().toISOString().split('T')[0];
-        localStorage.setItem('lastPlayedDate', today);
+        localStorage.setItem('lastPlayedDate', this.gameState.dateString);
         localStorage.setItem('lastScore', finalScore.toString());
         localStorage.setItem('lastWord', this.gameState.targetWord);
-        localStorage.setItem('hintsUsed', this.gameState.hintsRevealed.toString());
+        localStorage.setItem('hintsUsed', hintsUsed.toString());
 
-        localStorage.setItem('lastScore', finalScore.toString());
-
-
-    
         const generateShareText = () => {
             const guessBlocks = Array(3).fill('⬜').map((block, i) => {
                 if (i < (3 - this.gameState.guessesLeft)) return '🟦';
@@ -547,23 +630,24 @@ async endGame(message) {
                 return block;
             });
             
-            // Use the dateString we got from the server
             return `
-        WordMaster ${this.gameState.dateString}
-        Score: ${breakdown.finalScore}
+👑 WordMaster 👑  ${this.gameState.dateString}
+Score: ${breakdown.finalScore}
 
-        Guesses: ${guessBlocks.join('')}
-        Hints: ${hintBlocks.join('')}
+Guesses: ${guessBlocks.join('')}
+Hints: ${hintBlocks.join('')}
 
-        Play at: https://word-association-game.onrender.com/
-        `.trim();
+Play at: https://word-association-game.onrender.com/
+            `.trim();
         };
 
         // Save share text for later
         const shareText = generateShareText();
         localStorage.setItem('lastShareText', shareText);
         
-        const isNewScore = this.scoreTracker.addScore(finalScore, dateString);
+        // Add score to tracker with the correct dateString
+        const isNewScore = this.scoreTracker.addScore(finalScore, this.gameState.dateString);
+        
         
         // Check for high score and handle accumulated score submission
         if (finalScore > this.gameState.highScore || !this.scoreTracker.getPlayerName()) {
@@ -643,46 +727,44 @@ async endGame(message) {
                         </div>
                     ` : ''}
 
-                    <div class="share-section">
-                        <div class="share-preview">
-                            ${shareText.split('\n').map(line => 
-                                `<div class="share-line">${line}</div>`
-                            ).join('')}
+                <div class="share-section">
+                    <div class="share-preview">
+                        <h4>Share your results!</h4>
+                        ${shareText.split('\n').map(line => 
+                            `<div class="share-line">${line}</div>`
+                        ).join('')}
+                    </div>
+                    
+                    <button class="share-button" onclick="navigator.clipboard.writeText(\`${shareText}\`).then(() => {
+                        document.querySelector('.share-tooltip').classList.add('show');
+                        setTimeout(() => {
+                            document.querySelector('.share-tooltip').classList.remove('show');
+                        }, 2000);
+                    })">
+                        <div class="button-content">
+                            <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
+                                <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
+                            </svg>
+                            <span>Share Your Score!</span>
                         </div>
-                        <div class="next-word-countdown" id="countdown"></div>
-                    </div>
-
-                    <div class="end-game-actions">
-                        <button class="share-button" onclick="navigator.clipboard.writeText(\`${shareText}\`).then(() => {
-                            document.querySelector('.share-tooltip').classList.add('show');
-                            setTimeout(() => {
-                                document.querySelector('.share-tooltip').classList.remove('show');
-                            }, 2000);
-                        })">
-                            <span class="button-content">
-                                <svg class="share-icon" width="20" height="20" viewBox="0 0 24 24">
-                                    <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
-                                </svg>
-                                Share Score
-                            </span>
-                        </button>
-                        <div class="share-tooltip">Copied to clipboard!</div>
-                    </div>
+                    </button>
+                    <div class="share-tooltip">Copied to clipboard!</div>
                 </div>
             `,
             this.gameContainer
         );
         
-        // Add click handler for close button
         const closeButton = endGameElement.querySelector('.close-modal');
         closeButton.addEventListener('click', () => {
             endGameElement.remove();
+            this.updateGameContentForCompletion(); // Add this line
         });
         
-        // Add click handler to close when clicking outside the modal
+        // Add click handler to close when clicking outside the modal with new behavior
         endGameElement.addEventListener('click', (e) => {
             if (e.target === endGameElement) {
                 endGameElement.remove();
+                this.updateGameContentForCompletion(); // Add this line
             }
         });
         
@@ -713,14 +795,13 @@ async endGame(message) {
                     score: stats.totalScore,
                     gamesPlayed: stats.gamesPlayed,
                     averageScore: stats.averageScore,
-                    dateString: this.gameState.dateString
+                    dateString: this.gameState.dateString  // Use the stored dateString
                 })
             });
         } catch (error) {
             console.error('Error submitting accumulated score:', error);
         }
     }
-
 async showLeaderboard(containerId = null) {
     try {
         const response = await fetch('/leaderboards');

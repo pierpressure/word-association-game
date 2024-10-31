@@ -12,9 +12,45 @@
     "lastUpdated": "2024-10-30T23:20:27.643Z"
   },
   {
+    "name": "Marvin",
+    "totalScore": 520,
+    "gamesPlayed": 1,
+    "lastUpdated": "2024-10-31T22:30:48.642Z"
+  },
+  {
     "name": "Bad player",
     "totalScore": 85,
     "gamesPlayed": 1,
     "lastUpdated": "2024-10-30T23:11:02.934Z"
+  },
+  {
+    "name": "Katie",
+    "totalScore": 70,
+    "gamesPlayed": 1,
+    "lastUpdated": "2024-10-31T22:43:47.320Z"
+  },
+  {
+    "name": "Makenna",
+    "totalScore": 70,
+    "gamesPlayed": 1,
+    "lastUpdated": "2024-10-31T22:45:05.953Z"
+  },
+  {
+    "name": "jorge",
+    "totalScore": 45,
+    "gamesPlayed": 1,
+    "lastUpdated": "2024-10-31T22:29:33.463Z"
+  },
+  {
+    "name": "James",
+    "totalScore": 45,
+    "gamesPlayed": 1,
+    "lastUpdated": "2024-10-31T22:31:29.410Z"
+  },
+  {
+    "name": "Marcus",
+    "totalScore": 45,
+    "gamesPlayed": 1,
+    "lastUpdated": "2024-10-31T22:41:00.132Z"
   }
 ]

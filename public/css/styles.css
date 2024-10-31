@@ -210,9 +210,9 @@ button:disabled {
 
 /* Animations */
 @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+    0% { box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2); }
+    50% { box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4); }
+    100% { box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2); }
 }
 
 @keyframes slideIn {
@@ -444,9 +444,8 @@ button:disabled {
 
 .leaderboard-container {
     margin-top: 2rem;
-    background: white;
-    border-radius: 16px;
-    padding: 1.5rem;
+    overflow-x: auto;  /* Allow horizontal scroll on small screens */
+    -webkit-overflow-scrolling: touch;  /* Smooth scroll on iOS */
 }
 
 .leaderboard {
@@ -467,9 +466,11 @@ button:disabled {
 }
 
 .leaderboard table {
+    min-width: 100%;
     width: 100%;
     border-collapse: collapse;
 }
+
 
 .leaderboard th,
 .leaderboard td {
@@ -483,7 +484,35 @@ button:disabled {
     color: #6b7280;
     font-size: 0.875rem;
 }
+.leaderboard::before,
+.leaderboard::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 20px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
 
+.leaderboard::before {
+    left: 0;
+    background: linear-gradient(to right, white, transparent);
+}
+
+.leaderboard::after {
+    right: 0;
+    background: linear-gradient(to left, white, transparent);
+}
+
+.leaderboard.scroll-start::before {
+    opacity: 1;
+}
+
+.leaderboard.scroll-end::after {
+    opacity: 1;
+}
 .current-player {
     transition: background-color 0.3s ease;
 }
@@ -942,19 +971,23 @@ button:disabled {
 }
 
 .share-section {
-    margin-top: 2rem;
-    padding: 1.5rem;
-    background: #f8fafc;
-    border-radius: 12px;
+    position: relative;  /* Important for tooltip positioning */
+    margin: 2rem 0;
 }
 
+
 .share-preview {
-    font-family: monospace;
-    background: white;
+    background: #f8fafc;
     padding: 1rem;
-    border-radius: 8px;
+    border-radius: 12px;
     margin-bottom: 1rem;
-    white-space: pre-wrap;
+    font-family: monospace;
+}
+
+.share-preview h4 {
+    color: #6366f1;
+    margin-bottom: 0.75rem;
+    font-size: 1.1rem;
 }
 
 .share-line {
@@ -968,52 +1001,60 @@ button:disabled {
 }
 
 .share-button {
-    padding: 1rem;
+    width: 100%;
+    padding: 1rem 1.5rem;
     background: #6366f1;
     color: white;
     border: none;
-    border-radius: 8px;
+    animation: pulse 3s infinite;
+    border-radius: 12px;
+    font-size: 1.1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
 }
 
 .share-button:hover {
     background: #4f46e5;
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3);
 }
 
 .button-content {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    justify-content: center;
+    gap: 0.75rem;
 }
 
 .share-icon {
-    transition: transform 0.2s ease;
-}
-
-.share-button:hover .share-icon {
-    transform: translateY(-1px);
+    animation: bounce 2s infinite;
 }
 
 .share-tooltip {
     position: absolute;
-    bottom: 100%;
+    bottom: 120%;  /* Position above the button */
     left: 50%;
-    transform: translateX(-50%) translateY(10px);
+    transform: translateX(-50%);
     background: #1a2027;
     color: white;
     padding: 0.5rem 1rem;
     border-radius: 6px;
-    font-size: 0.875rem;
-    pointer-events: none;
+    font-size: 0.9rem;
     opacity: 0;
     transition: all 0.2s ease;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.share-tooltip.show {
+    opacity: 1;
+    bottom: 130%;
 }
 
 .share-tooltip::after {
@@ -1024,11 +1065,6 @@ button:disabled {
     transform: translateX(-50%);
     border: 6px solid transparent;
     border-top-color: #1a2027;
-}
-
-.share-tooltip.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
 }
 
 @media (hover: hover) {
@@ -1207,15 +1243,33 @@ button:disabled {
         grid-column: 1;
     }
 }
-/*Media for leaderboard*/
-@media (min-width: 768px) {
-    .leaderboard-container {
-        flex-direction: row;
-        flex-wrap: wrap;
+/* Make table more compact on mobile */
+@media (max-width: 768px) {
+    .leaderboard table {
+        font-size: 0.9rem;
     }
-    
-    .leaderboard {
-        flex: 1;
-        min-width: 300px;
+
+    .leaderboard th,
+    .leaderboard td {
+        padding: 0.5rem 0.25rem;
+    }
+
+    /* Optional: Hide less important columns on very small screens */
+    @media (max-width: 480px) {
+        .leaderboard .games-column {
+            display: none;
+        }
+    }
+
+    /* Stack leaderboards on mobile */
+    .leaderboard.monthly,
+    .leaderboard.hall-of-fame {
+        margin-bottom: 2rem;
+    }
+
+    /* Make numbers more compact */
+    .leaderboard td:nth-child(3),  /* Score column */
+    .leaderboard td:nth-child(4) { /* Games column */
+        font-variant-numeric: tabular-nums;
     }
 }

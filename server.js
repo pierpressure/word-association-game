@@ -145,9 +145,9 @@ async function validateDailyWords() {
     // Sort invalid words alphabetically for easier review
     invalidWords.sort();
 
-    console.log('All invalid words:');
-    console.log(JSON.stringify(invalidWords, null, 2));  // Pretty print the full array
-    console.log('\nInvalid word count by letter:');
+    // console.log('All invalid words:');
+    // console.log(JSON.stringify(invalidWords, null, 2));  // Pretty print the full array
+    // console.log('\nInvalid word count by letter:');
     
     // Group by first letter for analysis
     const byLetter = invalidWords.reduce((acc, word) => {
@@ -158,13 +158,13 @@ async function validateDailyWords() {
     }, {});
 
     Object.entries(byLetter).sort().forEach(([letter, words]) => {
-        console.log(`${letter}: ${words.length} words (${words.join(', ')})`);
+        // console.log(`${letter}: ${words.length} words (${words.join(', ')})`);
     });
 
-    console.log(`\nSummary:`);
-    console.log(`Total words: ${dailyWords.words.length}`);
-    console.log(`Valid words: ${validWords.length}`);
-    console.log(`Invalid words: ${invalidWords.length}`);
+    // console.log(`\nSummary:`);
+    // console.log(`Total words: ${dailyWords.words.length}`);
+    // console.log(`Valid words: ${validWords.length}`);
+    // console.log(`Invalid words: ${invalidWords.length}`);
 
     // Optionally write the filtered list back to the file
     const newDailyWords = {
@@ -214,7 +214,7 @@ async function loadWordVectors() {
             }
         });
         
-        console.log(`Loaded ${wordList.length} word vectors`);
+        // console.log(`Loaded ${wordList.length} word vectors`);
         console.log(`Loaded ${TARGET_WORDS.size} valid target words`);
         
         if (TARGET_WORDS.size === 0) {
@@ -453,7 +453,7 @@ function getHints(word) {
         }
     }
 
-    console.log('Generated hints for word:', word, hints);  // Debug log
+    // console.log('Generated hints for word:', word, hints);  // Debug log
     
     return hints;
 }
@@ -619,8 +619,8 @@ async function initServer() {
         if (!serverInitialized) {
             const server = app.listen(3000, () => {
                 serverInitialized = true;
-                console.log('Enhanced Word Game Server running on http://localhost:3000');
-                console.log(`Loaded ${wordList.length} word vectors and ${TARGET_WORDS.size} target words`);
+                // console.log('Enhanced Word Game Server running on http://localhost:3000');
+                // console.log(`Loaded ${wordList.length} word vectors and ${TARGET_WORDS.size} target words`);
             }).on('error', (error) => {
                 if (error.code === 'EADDRINUSE') {
                     console.log('Port 3000 is already in use. Please close other instances or use a different port.');
