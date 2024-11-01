@@ -81,6 +81,7 @@ static FAILURE_MESSAGES = [
     "this is not the slay we were looking for 😮‍💨",
     "me to this word: and i oop- 🫢"
 ];
+
     constructor() {
         this.MAX_GUESSES = 3;
         this.gameState = {
@@ -110,6 +111,9 @@ static FAILURE_MESSAGES = [
         this.initializeDOM();
         this.attachEventListeners();
         this.initGame();
+       if (!localStorage.getItem('tutorialShown')) {
+            this.showFirstTimeExperience();
+        }
     }
 
     static getScoreSummaryHTML(score, hintsUsed) {
@@ -616,6 +620,254 @@ revealHint(index, button, isFree = false) {
         hintContent.style.transform = 'translateY(0)';
     });
 }
+
+showFirstTimeExperience() {
+    // Check if tutorial has been shown before
+    if (localStorage.getItem('tutorialShown')) {
+        return;
+    }
+
+    const tutorialContent = document.createElement('div');
+    tutorialContent.className = 'tutorial-modal';
+    tutorialContent.innerHTML = `
+        <div class="tutorial-content">
+            <h2>✨ Welcome to WordMaster! ✨</h2>
+            
+            <div class="tutorial-section">
+                <p>Guess the hidden word based on <span class="highlight">meaning relationships!</span></p>
+                
+                <div class="example-cards">
+                    <div class="example-card">
+                        <h3>Example 1: "beach" 🏖️</h3>
+                        <div class="example-guesses">
+                            <div class="guess-item" style="background: #2ecc7120">
+                                <span class="word">sand</span>
+                                <span class="score">90% match 🔥</span>
+                                <span class="explanation">Super close - direct connection!</span>
+                            </div>
+                            <div class="guess-item" style="background: #f1c40f20">
+                                <span class="word">ocean</span>
+                                <span class="score">75% match ⭐</span>
+                                <span class="explanation">Getting warmer - related place</span>
+                            </div>
+                            <div class="guess-item" style="background: #3498db20">
+                                <span class="word">tree</span>
+                                <span class="score">30% match ❄️</span>
+                                <span class="explanation">Not really related</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="example-card">
+                        <h3>Example 2: "sleep" 😴</h3>
+                        <div class="example-guesses">
+                            <div class="guess-item" style="background: #2ecc7120">
+                                <span class="word">rest</span>
+                                <span class="score">95% match 🔥</span>
+                                <span class="explanation">Almost the same meaning!</span>
+                            </div>
+                            <div class="guess-item" style="background: #f1c40f20">
+                                <span class="word">dream</span>
+                                <span class="score">80% match ⭐</span>
+                                <span class="explanation">Happens while sleeping</span>
+                            </div>
+                            <div class="guess-item" style="background: #e67e2220">
+                                <span class="word">pillow</span>
+                                <span class="score">60% match 🌟</span>
+                                <span class="explanation">Used for sleeping</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tips-section">
+                <h3>Quick Tips 💡</h3>
+                <ul>
+                    <li>Think synonyms, categories, and related concepts</li>
+                    <li>First hint is always free - use it!</li>
+                    <li>Watch the emojis: 🔥 = very close, ❄️ = far off</li>
+                    <li>Perfect match = major points!</li>
+                </ul>
+            </div>
+
+            <button class="got-it-btn">
+                Let's play! 🎮
+            </button>
+        </div>
+    `;
+
+    // Add styles
+    const styles = `
+        .tutorial-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .tutorial-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 24px;
+            max-width: 90%;
+            width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .tutorial-content h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #1a2027;
+            font-size: 1.8rem;
+        }
+
+        .highlight {
+            background: linear-gradient(120deg, #6366f180 0%, #6366f130 100%);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+
+        .example-cards {
+            display: grid;
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .example-card {
+            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 16px;
+        }
+
+        .example-card h3 {
+            margin-bottom: 1rem;
+            color: #1a2027;
+        }
+
+        .example-guesses {
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .guess-item {
+            padding: 1rem;
+            border-radius: 12px;
+            display: grid;
+            gap: 0.25rem;
+        }
+
+        .word {
+            font-weight: 600;
+            color: #1a2027;
+        }
+
+        .score {
+            color: #4b5563;
+            font-size: 0.9rem;
+        }
+
+        .explanation {
+            font-size: 0.85rem;
+            color: #6b7280;
+            font-style: italic;
+        }
+
+        .tips-section {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+
+        .tips-section h3 {
+            margin-bottom: 1rem;
+            color: #1a2027;
+        }
+
+        .tips-section ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .tips-section li {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .tips-section li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #6366f1;
+        }
+
+        .got-it-btn {
+            display: block;
+            width: 100%;
+            padding: 1rem;
+            margin-top: 2rem;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .got-it-btn:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 640px) {
+            .tutorial-content {
+                padding: 1.5rem;
+            }
+            
+            .example-card {
+                padding: 1rem;
+            }
+        }
+    `;
+
+    // Add styles to document
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = styles;
+    document.head.appendChild(styleSheet);
+
+    // Add to DOM
+    document.body.appendChild(tutorialContent);
+
+    // Add click handler to button
+    const gotItBtn = tutorialContent.querySelector('.got-it-btn');
+    gotItBtn.addEventListener('click', () => {
+        tutorialContent.remove();
+        localStorage.setItem('tutorialShown', 'true');
+    });
+}
+
     async makeGuess() {
         const guess = this.guessInput.value.trim().toLowerCase();
         if (!guess) return;
