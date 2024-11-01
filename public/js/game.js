@@ -55,9 +55,10 @@ class WordGame {
             highScore: parseInt(localStorage.getItem('wordGameHighScore') || '0'),
             streak: 0,
             hints: [],
-            hintsRevealed: 0,
-            dateString: null,  // Initialize dateString
-            wordNumber: null   // Also track word number if needed
+            hintsRevealed: parseInt(localStorage.getItem('currentHintsRevealed') || '0'),
+            dateString: null,
+            maxPossibleScore: 1000,
+            perfectScorePossible: true
         };
         this.scoreTracker = new ScoreTracker();
 
@@ -76,145 +77,231 @@ class WordGame {
         this.initGame();
     }
 
-updateGameContentForCompletion() {
-    const container = document.querySelector('.container');
-    const gameContainer = document.getElementById('game-container');
-    const guessForm = document.getElementById('guess-form');
-    const guessesContainer = document.getElementById('guesses-container');
-    
-    // Hide the form
-    if (guessForm) {
-        guessForm.style.display = 'none';
+    static getScoreSummaryHTML(score, hintsUsed) {
+        let hintPenaltyText = '';
+        if (hintsUsed > 0) {
+            const maxWithoutHints = 1000;
+            const actualMax = hintsUsed === 1 ? 750 : 500;
+            const penaltyAmount = maxWithoutHints - actualMax;
+            hintPenaltyText = `<div class="hint-penalty-note">
+                (Maximum possible score reduced to ${actualMax} points ${hintsUsed === 1 ? 'with one hint' : 'with multiple hints'})
+            </div>`;
+        }
+        return `
+            <div class="final-score">
+                <h3>Final Score: ${score}</h3>
+                ${hintPenaltyText}
+            </div>
+        `;
     }
 
-    // Clear or hide the original guesses container
-    if (guessesContainer) {
-        guessesContainer.style.display = 'none';
-    }
+    updateGameContentForCompletion() {
+        const container = document.querySelector('.container');
+        const gameContainer = document.getElementById('game-container');
+        const guessForm = document.getElementById('guess-form');
+        const guessesContainer = document.getElementById('guesses-container');
+        
+        if (guessForm) {
+            guessForm.style.display = 'none';
+        }
 
-    // Get the stored data
-    const lastScore = parseInt(localStorage.getItem('lastScore') || '0');
-    const lastWord = localStorage.getItem('lastWord');
-    const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
-    const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
-    const shareText = localStorage.getItem('lastShareText');
+        if (guessesContainer) {
+            guessesContainer.style.display = 'none';
+        }
 
-    // Create the completion content
-    const completionContent = document.createElement('div');
-    completionContent.className = 'game-summary';
-    completionContent.innerHTML = `
-        <div class="target-word">Today's word was: <span class="highlight">${lastWord}</span></div>
+        const lastScore = parseInt(localStorage.getItem('lastScore') || '0');
+        const lastWord = localStorage.getItem('lastWord');
+        const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
+        const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
+        const shareText = localStorage.getItem('lastShareText');
+        
+        const escapedShareText = shareText ? shareText.replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
+        
+        const completionContent = document.createElement('div');
+        completionContent.className = 'game-summary';
+        completionContent.innerHTML = `
+            <div class="target-word">Today's word was: <span class="highlight">${lastWord}</span></div>
 
-        <div class="guess-history">
-            <h3>Your Guesses:</h3>
-            ${guessHistory.map(guess => `
-                <div class="guess-item" style="background: ${guess.color}20">
-                    <div class="guess-word">${guess.word}</div>
-                    <div class="guess-feedback">
-                        <span class="guess-score">Match: ${guess.score}%</span>
-                        <span class="points-earned">+${guess.points} points</span>
-                        <span class="guess-message">${guess.message}</span>
-                        <span class="emoji">${guess.emoji}</span>
+            <div class="guess-history">
+                <h3>Your Guesses:</h3>
+                ${guessHistory.map(guess => `
+                    <div class="guess-item" style="background: ${guess.color}20">
+                        <div class="guess-word">${guess.word}</div>
+                        <div class="guess-feedback">
+                            <span class="guess-score">Match: ${guess.score}%</span>
+                            <span class="points-earned">+${guess.points} points</span>
+                            <span class="guess-message">${guess.message}</span>
+                            <span class="emoji">${guess.emoji}</span>
+                        </div>
                     </div>
-                </div>
-            `).join('')}
-        </div>
-
-        <div class="share-section">
-            <button class="share-button" onclick="navigator.clipboard.writeText('${shareText}').then(() => {
-                document.querySelector('.share-tooltip').classList.add('show');
-                setTimeout(() => {
-                    document.querySelector('.share-tooltip').classList.remove('show');
-                }, 2000);
-            })">
-                <div class="button-content">
-                    <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
-                    </svg>
-                    <span>Share Score!</span>
-                </div>
-            </button>
-            <div class="share-tooltip">Copied to clipboard!</div>
-        </div>
-    `;
-
-    // Add the completion content after the guesses container
-    if (guessesContainer && guessesContainer.parentNode) {
-        guessesContainer.parentNode.insertBefore(completionContent, guessesContainer.nextSibling);
-    }
-}
-showAlreadyPlayedMessage() {
-    const container = document.querySelector('.container');
-    if (!container) return;
-
-    // Disable any existing game elements
-    const gameContainer = document.getElementById('game-container');
-    if (gameContainer) {
-        gameContainer.style.display = 'none';
-    }
-
-    const guessForm = document.getElementById('guess-form');
-    if (guessForm) {
-        guessForm.style.display = 'none';
-    }
-
-    const lastScore = parseInt(localStorage.getItem('lastScore') || '0');
-    const lastWord = localStorage.getItem('lastWord');
-    const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
-    const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
-    const shareText = localStorage.getItem('lastShareText');
-
-    container.innerHTML = `
-        <div class="already-played-message">
-            <h2>You've already played today!</h2>
-            <div class="countdown" id="countdown"></div>
-
-            <div class="game-summary">
-                <p class="target-word">Today's word was: <span class="highlight">${lastWord}</span></p>
-
-                <div class="guess-history">
-                    <h3>Your Guesses:</h3>
-                    ${guessHistory.map(guess => `
-                        <div class="guess-item" style="background: ${guess.color}20">
-                            <div class="guess-word">${guess.word}</div>
-                            <div class="guess-feedback">
-                                <span class="guess-score">Match: ${guess.score}%</span>
-                                <span class="points-earned">+${guess.points} points</span>
-                                <span class="guess-message">${guess.message}</span>
-                                <span class="emoji">${guess.emoji}</span>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-
-                <div class="share-section">
-                    <button class="share-button" onclick="navigator.clipboard.writeText('${shareText}').then(() => {
-                        document.querySelector('.share-tooltip').classList.add('show');
-                        setTimeout(() => {
-                            document.querySelector('.share-tooltip').classList.remove('show');
-                        }, 2000);
-                    })">
-                        <div class="button-content">
-                            <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
-                                <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
-                            </svg>
-                            <span>Share Score!</span>
-                        </div>
-                    </button>
-                    <div class="share-tooltip">Copied to clipboard!</div>
-                </div>
+                `).join('')}
             </div>
 
-            <div id="already-played-leaderboard"></div>
-        </div>`;
+            ${WordGame.getScoreSummaryHTML(lastScore, hintsUsed)}
 
-    // Start countdown to next word
-    this.updateCountdown();
-    setInterval(() => this.updateCountdown(), 1000);
 
-    // Show leaderboard in the new dedicated container
-    this.showLeaderboard('already-played-leaderboard');
-}
+            <div class="share-section">
+                <button class="share-button" onclick="navigator.clipboard.writeText(\`${escapedShareText}\`).then(() => {
+                    document.querySelector('.share-tooltip').classList.add('show');
+                    setTimeout(() => {
+                        document.querySelector('.share-tooltip').classList.remove('show');
+                    }, 2000);
+                })">
+                    <div class="button-content">
+                        <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
+                        </svg>
+                        <span>Share Score!</span>
+                    </div>
+                </button>
+                <div class="share-tooltip">Copied to clipboard!</div>
+            </div>
+        `;
+
+        if (guessesContainer && guessesContainer.parentNode) {
+            guessesContainer.parentNode.insertBefore(completionContent, guessesContainer.nextSibling);
+        }
+    }
+    updateGameContentForCompletion() {
+        const container = document.querySelector('.container');
+        const gameContainer = document.getElementById('game-container');
+        const guessForm = document.getElementById('guess-form');
+        const guessesContainer = document.getElementById('guesses-container');
+        
+        if (guessForm) {
+            guessForm.style.display = 'none';
+        }
+
+        if (guessesContainer) {
+            guessesContainer.style.display = 'none';
+        }
+
+        const lastScore = parseInt(localStorage.getItem('lastScore') || '0');
+        const lastWord = localStorage.getItem('lastWord');
+        const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
+        const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
+        const shareText = localStorage.getItem('lastShareText');
+        
+        const escapedShareText = shareText ? shareText.replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
+        
+        const completionContent = document.createElement('div');
+        completionContent.className = 'game-summary';
+        completionContent.innerHTML = `
+            <div class="target-word">Today's word was: <span class="highlight">${lastWord}</span></div>
+
+            <div class="guess-history">
+                <h3>Your Guesses:</h3>
+                ${guessHistory.map(guess => `
+                    <div class="guess-item" style="background: ${guess.color}20">
+                        <div class="guess-word">${guess.word}</div>
+                        <div class="guess-feedback">
+                            <span class="guess-score">Match: ${guess.score}%</span>
+                            <span class="points-earned">+${guess.points} points</span>
+                            <span class="guess-message">${guess.message}</span>
+                            <span class="emoji">${guess.emoji}</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            ${WordGame.getScoreSummaryHTML(lastScore, hintsUsed)}
+
+            <div class="share-section">
+                <button class="share-button" onclick="navigator.clipboard.writeText(\`${escapedShareText}\`).then(() => {
+                    document.querySelector('.share-tooltip').classList.add('show');
+                    setTimeout(() => {
+                        document.querySelector('.share-tooltip').classList.remove('show');
+                    }, 2000);
+                })">
+                    <div class="button-content">
+                        <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
+                        </svg>
+                        <span>Share Score!</span>
+                    </div>
+                </button>
+                <div class="share-tooltip">Copied to clipboard!</div>
+            </div>
+        `;
+
+        if (guessesContainer && guessesContainer.parentNode) {
+            guessesContainer.parentNode.insertBefore(completionContent, guessesContainer.nextSibling);
+        }
+    }
+
+    showAlreadyPlayedMessage() {
+        const container = document.querySelector('.container');
+        if (!container) return;
+
+        const gameContainer = document.getElementById('game-container');
+        if (gameContainer) {
+            gameContainer.style.display = 'none';
+        }
+
+        const guessForm = document.getElementById('guess-form');
+        if (guessForm) {
+            guessForm.style.display = 'none';
+        }
+
+        const lastScore = parseInt(localStorage.getItem('lastScore') || '0');
+        const lastWord = localStorage.getItem('lastWord');
+        const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
+        const hintsUsed = parseInt(localStorage.getItem('hintsUsed') || '0');
+        const shareText = localStorage.getItem('lastShareText');
+        
+        const escapedShareText = shareText ? shareText.replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
+
+        container.innerHTML = `
+            <div class="already-played-message">
+                <h2>You've already played today!</h2>
+                <div class="countdown" id="countdown"></div>
+
+                <div class="game-summary">
+                    <p class="target-word">Today's word was: <span class="highlight">${lastWord}</span></p>
+
+                    <div class="guess-history">
+                        <h3>Your Guesses:</h3>
+                        ${guessHistory.map(guess => `
+                            <div class="guess-item" style="background: ${guess.color}20">
+                                <div class="guess-word">${guess.word}</div>
+                                <div class="guess-feedback">
+                                    <span class="guess-score">Match: ${guess.score}%</span>
+                                    <span class="points-earned">+${guess.points} points</span>
+                                    <span class="guess-message">${guess.message}</span>
+                                    <span class="emoji">${guess.emoji}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    ${WordGame.getScoreSummaryHTML(lastScore, hintsUsed)}
+
+                    <div class="share-section">
+                        <button class="share-button" onclick="navigator.clipboard.writeText(\`${escapedShareText}\`).then(() => {
+                            document.querySelector('.share-tooltip').classList.add('show');
+                            setTimeout(() => {
+                                document.querySelector('.share-tooltip').classList.remove('show');
+                            }, 2000);
+                        })">
+                            <div class="button-content">
+                                <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
+                                    <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
+                                </svg>
+                                <span>Share Score!</span>
+                            </div>
+                        </button>
+                        <div class="share-tooltip">Copied to clipboard!</div>
+                    </div>
+                </div>
+
+                <div id="already-played-leaderboard"></div>
+            </div>`;
+
+        this.updateCountdown();
+        setInterval(() => this.updateCountdown(), 1000);
+        this.showLeaderboard('already-played-leaderboard');
+    }
+
     updateCountdown() {
         const now = new Date();
         const tomorrow = new Date(now);
@@ -294,41 +381,50 @@ showAlreadyPlayedMessage() {
         });
     }
 
-    async initGame() {
-        try {
-            const response = await fetch('/get-target-word');
-            const data = await response.json();
-            
-            // Store all the data from server response
-            this.gameState = {
-                ...this.gameState,
-                targetWord: data.word,
-                hints: data.hints,
-                dateString: data.dateString,    // Make sure we store this
-                wordNumber: data.wordNumber,    // And this if needed
-                guessesLeft: this.MAX_GUESSES,
-                score: 0,
-                streak: 0
-            };
-            
-            console.log('Game initialized with date:', this.gameState.dateString); // Debug log
-            
-            this.loadingElement.style.display = 'none';
-            this.gameContainer.style.display = 'block';
-            this.updateDisplay();
-            this.showHints();
-            
-            // Animate in
-            this.gameContainer.style.opacity = 0;
-            requestAnimationFrame(() => {
-                this.gameContainer.style.transition = 'opacity 0.5s';
-                this.gameContainer.style.opacity = 1;
-            });
-        } catch (error) {
-            console.error('Error initializing game:', error);
-            this.loadingElement.textContent = 'Error loading game. Please refresh.';
-        }
+async initGame() {
+    try {
+        const response = await fetch('/get-target-word');
+        const data = await response.json();
+        
+        this.gameState = {
+            ...this.gameState,
+            targetWord: data.word,
+            hints: data.hints,
+            dateString: data.dateString,
+            wordNumber: data.wordNumber,
+            guessesLeft: this.MAX_GUESSES,
+            score: 0,
+            streak: 0
+        };
+        
+        this.loadingElement.style.display = 'none';
+        this.gameContainer.style.display = 'block';
+        this.updateDisplay();
+        this.showHints();
+        
+        // Reveal previously shown hints
+        const revealedHints = JSON.parse(localStorage.getItem('revealedHints') || '[]');
+        revealedHints.forEach(index => {
+            const button = this.hintsPanel.querySelector(`[data-hint-index="${index}"]`);
+            if (button) {
+                // Use a small timeout to ensure the button exists
+                setTimeout(() => {
+                    this.revealHint(index, button, index === 0);
+                }, 100);
+            }
+        }); // Added this closing bracket
+
+        // Animate in
+        this.gameContainer.style.opacity = 0;
+        requestAnimationFrame(() => {
+            this.gameContainer.style.transition = 'opacity 0.5s';
+            this.gameContainer.style.opacity = 1;
+        });
+    } catch (error) {
+        console.error('Error initializing game:', error);
+        this.loadingElement.textContent = 'Error loading game. Please refresh.';
     }
+}
 
     // startTimer() {
     //     if (this.timerInterval) clearInterval(this.timerInterval);
@@ -380,29 +476,43 @@ showHints() {
         <h3>Available Hints</h3>
         <div class="hints-list">
             ${this.gameState.hints.map((hint, index) => {
-                let costLabel;
+                let hintLabel;
                 if (index === 0) {
-                    costLabel = '<span class="hint-cost free">Free!</span>';
-                } else if (index === 1) {
-                    costLabel = '<span class="hint-cost">Costs 300 points</span>';
+                    hintLabel = '<span class="hint-label">First Hint <span class="hint-cost free">Always Free</span></span>';
                 } else {
-                    costLabel = '<span class="hint-cost">Costs 200 points</span>';
+                    hintLabel = `<span class="hint-label">Hint ${index + 1} <span class="hint-cost">Lowers max possible score 🫣</span></span>`;
                 }
                 
                 return `
                     <div class="hint-item">
                         <button class="hint-button" data-hint-index="${index}">
-                            <span class="hint-label">
-                                ${index === 0 ? 'First Hint' : index === 1 ? 'Second Hint' : 'Final Hint'} 
-                                ${costLabel}
-                            </span>
+                            ${hintLabel}
                         </button>
                         <div class="hint-content" style="display: none;">
                             ${hint}
+                            ${index === 0 ? '' : 
+                                '<div class="hint-info">Using hints changes your maximum possible points:</div>' +
+                                '<div class="score-breakdown">' +
+                                    '<div>Perfect guess with no hints: 1000 points maximum</div>' +
+                                    '<div>Perfect guess with one hint: 750 points maximum</div>' +
+                                    '<div>Perfect guess with both hints: 500 points maximum</div>' +
+                                '</div>'
+                            }
                         </div>
                     </div>
                 `;
             }).join('')}
+        </div>
+        <div class="hints-info">
+            <p>💡 How scoring works:</p>
+            <ul>
+                <li>Perfect match: Up to 1000 points (reduced by hints)</li>
+                <li>Very close guess (90%+): 100 points</li>
+                <li>Close guess (70-89%): 50 points</li>
+                <li>Getting there (50-69%): 25 points</li>
+                <li>Trying (30-49%): 10 points</li>
+            </ul>
+            <p class="hint-note">Using hints reduces your maximum possible score</p>
         </div>
     `;
 
@@ -421,16 +531,32 @@ showHints() {
     }
 }
 
-// Add this new method for revealing hints:
 revealHint(index, button, isFree = false) {
     if (button.disabled) return;
 
+    // Get hint content element first
     const hintContent = button.nextElementSibling;
-    if (!isFree) {
-        // Deduct points based on hint index
-        const cost = index === 1 ? 10 : 15;  // Second hint costs 10, third costs 15
-        this.gameState.score = Math.max(0, this.gameState.score - cost);
+    if (!hintContent) {
+        console.error('Hint content element not found');
+        return;
+    }
+
+    if (!isFree && index > 0) {
+        console.log('Before hint reveal:', {
+            hintsRevealed: this.gameState.hintsRevealed,
+            currentScore: this.gameState.score
+        });
+
         this.gameState.hintsRevealed++;
+        localStorage.setItem('currentHintsRevealed', this.gameState.hintsRevealed.toString());
+        localStorage.setItem('hintsUsed', this.gameState.hintsRevealed.toString());
+
+        console.log('After hint reveal:', {
+            hintsRevealed: this.gameState.hintsRevealed,
+            currentScore: this.gameState.score
+        });
+        
+        this.gameState.perfectScorePossible = false;
         this.updateDisplay();
     }
 
@@ -438,6 +564,13 @@ revealHint(index, button, isFree = false) {
     button.disabled = true;
     button.classList.add('revealed');
     hintContent.style.display = 'block';
+    
+    // Store revealed hint
+    const revealedHints = JSON.parse(localStorage.getItem('revealedHints') || '[]');
+    if (!revealedHints.includes(index)) {
+        revealedHints.push(index);
+        localStorage.setItem('revealedHints', JSON.stringify(revealedHints));
+    }
     
     // Animate hint reveal
     hintContent.style.opacity = '0';
@@ -456,6 +589,12 @@ revealHint(index, button, isFree = false) {
             const response = await fetch(`/calculate-score?guess=${guess}&target=${this.gameState.targetWord}`);
             const data = await response.json();
             
+            console.log('Making guess:', {
+                guess,
+                matchScore: data.score,
+                currentScore: this.gameState.score,
+                hintsRevealed: this.gameState.hintsRevealed
+            });
             // // Debug logs
             // console.log('Guess:', guess);
             // console.log('Score:', data.score);
@@ -486,6 +625,12 @@ revealHint(index, button, isFree = false) {
             
             // Calculate guess points based on remaining guesses and score
             let guessPoints = this.calculateGuessPoints(data.score);
+        
+            console.log('Points awarded:', {
+                guessPoints,
+                newTotal: this.gameState.score + guessPoints,
+                hintsUsed: this.gameState.hintsRevealed
+            });
             
             // Store the guess data
             const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
@@ -543,41 +688,97 @@ revealHint(index, button, isFree = false) {
         }
     }
 calculateGuessPoints(matchScore) {
-    // Base points for the guess quality
-    let points = 0;
-    
+    console.log('Calculating points:', {
+        matchScore,
+        currentScore: this.gameState.score,
+        hintsRevealed: this.gameState.hintsRevealed,
+        guessesLeft: this.gameState.guessesLeft
+    });
+
+    // For perfect match
     if (matchScore === 100) {
-        // Perfect match base points depend on which guess it is
-        switch (this.MAX_GUESSES - this.gameState.guessesLeft) {
-            case 0: // First guess with auto hint = 1000
-                points = 1000;
+        let maxPossible;
+        
+        // Fix the scoring tiers for hints
+        switch (this.gameState.hintsRevealed) {
+            case 0:
+                maxPossible = 1000;  // No hints used
                 break;
-            case 1: // Second guess with auto hint = 750
-                points = 750;
+            case 1:
+                maxPossible = 750;   // One hint used
                 break;
-            case 2: // Third guess with auto hint = 500
-                points = 500;
+            case 2:
+            case 3:
+                maxPossible = 500;   // Two or three hints used
                 break;
+            default:
+                maxPossible = 500;   // Safeguard for any other cases
         }
-    } else if (matchScore >= 90) {
-        points = 100;
-    } else if (matchScore >= 70) {
-        points = 50;
-    } else if (matchScore >= 50) {
-        points = 25;
-    } else {
-        points = 10;
+
+        const currentScore = this.gameState.score;
+        
+        // If we already have points, they reduce from the max possible
+        const remainingPoints = maxPossible - currentScore;
+        
+        // Always ensure at least 100 points for a perfect match
+        const finalPoints = Math.max(100, remainingPoints);
+
+        console.log('Perfect match calculation:', {
+            maxPossible,
+            currentScore,
+            remainingPoints,
+            finalPoints,
+            hintsUsed: this.gameState.hintsRevealed
+        });
+
+        return finalPoints;
     }
     
-    return points;
+    // Regular scoring remains the same
+    if (matchScore >= 90) return 100;
+    if (matchScore >= 70) return 50;
+    if (matchScore >= 50) return 25;
+    return 10;
+}
+
+testScoring() {
+    console.log('Testing scoring scenarios:');
+    
+    // Test Case 1: Perfect first try, no hints
+    this.gameState.score = 0;
+    this.gameState.hintsRevealed = 0;
+    console.log('Perfect first try, no hints:', this.calculateGuessPoints(100)); // Should be 1000
+
+    // Test Case 2: Perfect after 50 points, no hints
+    this.gameState.score = 50;
+    this.gameState.hintsRevealed = 0;
+    console.log('Perfect after 50 points, no hints:', this.calculateGuessPoints(100)); // Should be 950
+
+    // Test Case 3: Perfect first try with one hint
+    this.gameState.score = 0;
+    this.gameState.hintsRevealed = 1;
+    console.log('Perfect first try with one hint:', this.calculateGuessPoints(100)); // Should be 750
+
+    // Test Case 4: Perfect after 50 points with one hint
+    this.gameState.score = 50;
+    this.gameState.hintsRevealed = 1;
+    console.log('Perfect after 50 points with one hint:', this.calculateGuessPoints(100)); // Should be 700
+
+    // Test Case 5: Perfect first try with two hints
+    this.gameState.score = 0;
+    this.gameState.hintsRevealed = 2;
+    console.log('Perfect first try with two hints:', this.calculateGuessPoints(100)); // Should be 500
+
+    // Test Case 6: Perfect after 50 points with two hints
+    this.gameState.score = 50;
+    this.gameState.hintsRevealed = 2;
+    console.log('Perfect after 50 points with two hints:', this.calculateGuessPoints(100)); // Should be 450
 }
 
 calculateHintsPenalty() {
-    // First hint is automatic and free
-    // Additional hints have significant but not devastating penalties
-    const penalties = [0, 0, 300, 200];
-    const totalPenalty = penalties.slice(0, this.gameState.hintsRevealed + 1).reduce((a, b) => a + b, 0);
-    return -totalPenalty;
+    const hints = this.gameState.hintsRevealed;
+    if (hints <= 1) return 0; // First hint is free
+    return -(hints - 1) * 250; // -250 points per additional hint
 }
 
 // Remove the win bonus calculation since it's built into the guess points
@@ -588,15 +789,16 @@ calculateWinBonus() {
 applyFinalScore(isWin) {
     const baseScore = this.gameState.score;
     const hintsDeduction = this.calculateHintsPenalty();
+    const finalScore = Math.max(0, baseScore + hintsDeduction);
     
-    // Simpler final calculation
-    this.gameState.score = Math.max(0, baseScore + hintsDeduction);
+    // Store final score for later use
+    localStorage.setItem('lastScore', finalScore.toString());
     
-    // Store breakdown for display
+    this.gameState.score = finalScore;
     this.gameState.scoreBreakdown = {
         baseScore,
         hintsDeduction,
-        finalScore: this.gameState.score
+        finalScore
     };
 }
 // Update endGame method in game.js
@@ -625,20 +827,23 @@ applyFinalScore(isWin) {
                 if (i < (3 - this.gameState.guessesLeft)) return '🟦';
                 return block;
             });
-            const hintBlocks = Array(3).fill('⬜').map((block, i) => {
-                if (i < hintsUsed) return '💡';
+            const hintBlocks = Array(2).fill('⬜').map((block, i) => {
+                if (i < this.gameState.hintsRevealed) return '💡';
                 return block;
             });
             
-            return `
-👑 WordMaster 👑  ${this.gameState.dateString}
-Score: ${breakdown.finalScore}
-
-Guesses: ${guessBlocks.join('')}
-Hints: ${hintBlocks.join('')}
-
-Play at: https://word-association-game.onrender.com/
-            `.trim();
+            // Calculate final score based on hints used
+            const finalScore = this.gameState.score;
+            
+            return [
+                `👑 WordMaster 👑  ${this.gameState.dateString}`,
+                `Score: ${this.gameState.score}`,
+                '',
+                `Guesses: ${guessBlocks.join('')}`,
+                `Hints: ${hintBlocks.join('')}`,
+                '',
+                'Play at: https://word-association-game.onrender.com/'
+            ].join('\n');
         };
 
         // Save share text for later
@@ -780,6 +985,8 @@ Play at: https://word-association-game.onrender.com/
         
         // Show leaderboard
         await this.showLeaderboard();
+        localStorage.removeItem('currentHintsRevealed');
+        localStorage.removeItem('revealedHints');
     }
     
     async submitAccumulatedScore() {
