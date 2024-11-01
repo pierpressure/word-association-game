@@ -46,6 +46,41 @@ class ScoreTracker {
 }
 
 class WordGame {
+    static SUCCESS_MESSAGES = [
+    "main character behavior fr fr 💅",
+    "you ate that bestie 💫",
+    "no thoughts just pure slay 👑",
+    "the way you ATE this up ✨",
+    "living your best WordMaster era 💅",
+    "you're literally that girl 💁‍♀️",
+    "bestie went off 😌",
+    "this is giving genius vibes only ⭐",
+    "ok go off intellectual king/queen 👑",
+    "not you being a whole wordsmith rn ✨",
+    "we love this journey for you 🌟",
+    "you understood the assignment fr 📚",
+    "purrrr 💅",
+    "work bestie, that's so valid 🤝",
+    "it's giving galaxy brain 🧠"
+];
+
+static FAILURE_MESSAGES = [
+    "bestie, there's always tomorrow 🫂",
+    "this one ain't the vibe fr 😭",
+    "lowkey struggling but we move 😮‍💨",
+    "sorry bestie, not your main character moment 🫠",
+    "it's giving challenge, but you'll slay tomorrow 💫",
+    "this word was not the moment 😤",
+    "no because why was this so hard tho 😩",
+    "crying and throwing up rn 😭",
+    "that's rough bestie 🫂",
+    "not me failing the vibe check 💀",
+    "this word did not pass the vibe check ❌",
+    "im literally screaming and crying rn 😭",
+    "unfort bestie 😔",
+    "this is not the slay we were looking for 😮‍💨",
+    "me to this word: and i oop- 🫢"
+];
     constructor() {
         this.MAX_GUESSES = 3;
         this.gameState = {
@@ -822,29 +857,45 @@ applyFinalScore(isWin) {
         localStorage.setItem('lastWord', this.gameState.targetWord);
         localStorage.setItem('hintsUsed', hintsUsed.toString());
 
-        const generateShareText = () => {
-            const guessBlocks = Array(3).fill('⬜').map((block, i) => {
-                if (i < (3 - this.gameState.guessesLeft)) return '🟦';
-                return block;
-            });
-            const hintBlocks = Array(2).fill('⬜').map((block, i) => {
-                if (i < this.gameState.hintsRevealed) return '💡';
-                return block;
-            });
-            
-            // Calculate final score based on hints used
-            const finalScore = this.gameState.score;
-            
-            return [
-                `👑 WordMaster 👑  ${this.gameState.dateString}`,
-                `Score: ${this.gameState.score}`,
-                '',
-                `Guesses: ${guessBlocks.join('')}`,
-                `Hints: ${hintBlocks.join('')}`,
-                '',
-                'Play at: https://word-association-game.onrender.com/'
-            ].join('\n');
-        };
+    const generateShareText = () => {
+        const guessHistory = JSON.parse(localStorage.getItem('guessHistory') || '[]');
+        const journeyText = guessHistory.map((guess, index) => 
+            `Word ${index + 1}: ${guess.score}% ${guess.emoji}`
+        ).join('\n');
+
+        const wasSuccess = guessHistory.some(guess => guess.score === 100);
+        
+        // Get random message based on success/failure
+        const randomMessage = wasSuccess 
+            ? WordGame.SUCCESS_MESSAGES[Math.floor(Math.random() * WordGame.SUCCESS_MESSAGES.length)]
+            : WordGame.FAILURE_MESSAGES[Math.floor(Math.random() * WordGame.FAILURE_MESSAGES.length)];
+
+        const guessBlocks = Array(3).fill('⬜').map((block, i) => {
+            if (i < guessHistory.length) return '🟦';
+            return block;
+        });
+        
+        const hintBlocks = Array(3).fill('⬜').map((block, i) => {
+            if (i < this.gameState.hintsRevealed) return '💡';
+            return block;
+        });
+
+        return [
+            `🧠 WordMaster ${this.gameState.dateString}`,
+            '',
+            randomMessage,
+            '',
+            '✨ My Journey:',
+            journeyText,
+            '',
+            `Score: ${this.gameState.score}`,
+            '',
+            `Guesses: ${guessBlocks.join('')}`,
+            `Hints: ${hintBlocks.join('')}`,
+            '',
+            'Play at: https://word-association-game.onrender.com/'
+        ].join('\n');
+    };
 
         // Save share text for later
         const shareText = generateShareText();
