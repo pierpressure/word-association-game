@@ -616,6 +616,8 @@ button:disabled {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    max-width: 600px; /* Ensure enough width for 5 guesses */
+
 }
 
 .guess-item {

@@ -248,18 +248,17 @@ function cosineSimilarity(vec1, vec2) {
 
 // Updated getRelatedWords with better error handling
 function getRelatedWords(word) {
-    // Check if vectors are loaded
     if (!vectorsLoaded || !wordVectors) {
         console.error('Word vectors not loaded yet!');
         return [];
     }
 
-    // Check cache first
     if (associationCache.has(word)) {
+        console.log('Returning cached related words for:', word);
         return associationCache.get(word);
     }
 
-    console.log(`Getting related words for: ${word}`); // Debug log
+    console.log(`Getting related words for: ${word}`);
 
     let relatedWords = new Set();
     
@@ -269,9 +268,8 @@ function getRelatedWords(word) {
     }
 
     try {
-        // Get more initial candidates for better selection
         const candidates = Object.entries(wordVectors)
-            .filter(([w]) => commonWords.has(w)) // Only use common words
+            .filter(([w]) => commonWords.has(w))
             .map(([w, vec]) => ({
                 word: w,
                 similarity: cosineSimilarity(vec, wordVectors[word])
@@ -281,18 +279,12 @@ function getRelatedWords(word) {
             .slice(0, 20)
             .map(({word}) => word);
         
-        console.log(`Found ${candidates.length} initial candidates`); // Debug log
+        console.log(`Found ${candidates.length} initial candidates for: ${word}`);
         
-        // Filter candidates for better hints
         const goodHints = candidates.filter(w => isGoodHintWord(w, word));
         goodHints.slice(0, 5).forEach(w => relatedWords.add(w));
 
-        console.log(`Found ${relatedWords.size} good hints`); // Debug log
-
-        // If we don't have enough good hints, try broader similarity
         if (relatedWords.size < 5) {
-            console.log('Not enough hints, trying broader similarity'); // Debug log
-            
             const broaderCandidates = Object.entries(wordVectors)
                 .filter(([w]) => commonWords.has(w) && !relatedWords.has(w))
                 .map(([w, vec]) => ({
@@ -306,24 +298,21 @@ function getRelatedWords(word) {
                 .filter(w => isGoodHintWord(w, word));
                 
             broaderCandidates.forEach(w => relatedWords.add(w));
-            console.log(`Added ${broaderCandidates.length} broader candidates`); // Debug log
         }
 
+        const finalWords = Array.from(relatedWords);
+        console.log('Final related words for', word, ':', finalWords);
+
+        if (finalWords.length > 0) {
+            associationCache.set(word, finalWords);
+        }
+        
+        return finalWords;
     } catch (error) {
-        console.error('Error generating related words:', error);
+        console.error('Error getting related words:', error);
         return [];
     }
-
-    const finalWords = Array.from(relatedWords);
-    
-    // Only cache if we actually found some words
-    if (finalWords.length > 0) {
-        associationCache.set(word, finalWords);
-    }
-    
-    return finalWords;
 }
-
 function getFeedback(score) {
     if (score === 100) return { message: "Perfect match!", color: "#2ecc71", emoji: "🎯" };
     if (score >= 90) return { message: "Extremely close!", color: "#27ae60", emoji: "🔥" };
@@ -475,6 +464,7 @@ app.get('/', (req, res) => {
 });
 
 // Fix the calculate-score endpoint:
+// In server.js, update the calculate-score endpoint
 app.get('/calculate-score', (req, res) => {
     const { guess, target } = req.query;
     
@@ -495,7 +485,22 @@ app.get('/calculate-score', (req, res) => {
         });
     }
 
-    // Check for exact match FIRST, before checking vectors
+    // Get related words (hints) for the target word
+    const hintWords = getRelatedWords(targetLower);
+    console.log('Hint words for', targetLower, ':', hintWords);
+    
+    // Check if guess is a hint word
+    if (hintWords.includes(guessLower)) {
+        console.log('Guess is a hint word:', guessLower);
+        return res.json({
+            score: 90,
+            message: "Very close, but that's a hint word!",
+            color: "#f1c40f",
+            emoji: "💭"
+        });
+    }
+
+    // Check for exact match AFTER checking if it's a hint word
     if (guessLower === targetLower) {
         return res.json({ 
             score: 100,
@@ -532,6 +537,7 @@ app.get('/calculate-score', (req, res) => {
         emoji: "🤔"
     });
 });
+
 
 
 app.get('/get-target-word', (req, res) => {
