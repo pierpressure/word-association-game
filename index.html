@@ -23,7 +23,7 @@
                         </button>
                         <div class="section-content">
                             <ul>
-                                <li>Guess the hidden word in 3 tries</li>
+                                <li>Guess the hidden word in 5 tries</li>
                                 <li>Enter words that are <em>related in meaning</em> to the target word</li>
                                 <li>For example, if the target is "sleep", good guesses might be "rest", "dream", or "bed"</li>
                                 <li>Each guess gets a score showing how closely related it is</li>
@@ -58,20 +58,33 @@
                         </button>
                         <div class="section-content">
                             <ul>
-                                <li>First try perfect match: 1000 points</li>
-                                <li>Second try perfect match: 750 points</li>
-                                <li>Third try perfect match: 500 points</li>
-                                <li>Very close guess (90%+): 100 points</li>
-                                <li>Close guess (70-89%): 50 points</li>
-                                <li>Getting there (50-69%): 25 points</li>
-                                <li>Trying (30-49%): 10 points</li>
+                                <li>Perfect match scoring:</li>
+                                <ul class="sub-list">
+                                    <li>Base score with no hints: 1000 points</li>
+                                    <li>Base score with one hint: 750 points</li>
+                                    <li>Base score with multiple hints: 400 points</li>
+                                    <li>Penalty of 50 points for each guess used</li>
+                                    <li>Minimum of 300 points for finding the word</li>
+                                </ul>
+                                <li>Other guesses:</li>
+                                <ul class="sub-list">
+                                    <li>Very close guess (90%+): 100 points</li>
+                                    <li>Close guess (70-89%): 50 points</li>
+                                    <li>Getting there (50-69%): 25 points</li>
+                                    <li>Trying (30-49%): 10 points</li>
+                                </ul>
+                                <li>Special cases:</li>
+                                <ul class="sub-list">
+                                    <li>Guessing a hint word: 90 points</li>
+                                    <li>First hint is always free</li>
+                                    <li>Cannot guess the same word twice</li>
+                                    <li>You have 5 chances to find the word!</li>
+                                </ul>
                             </ul>
-                            <p><strong>Hint Costs:</strong></p>
-                            <ul>
-                                <li>First hint: Free</li>
-                                <li>Second hint: -300 points</li>
-                                <li>Final hint: -200 points</li>
-                            </ul>
+                            <p class="scoring-example">
+                                <strong>Example:</strong> If you find the word on your third guess after using one hint,
+                                you'll get: 750 (base) - 100 (two guesses used) = 650 points, plus points from your previous guesses!
+                            </p>
                         </div>
                     </div>
                 </div>
