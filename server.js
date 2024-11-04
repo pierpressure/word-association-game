@@ -88,6 +88,41 @@ async function saveLeaderboards() {
     }
 }
 
+
+function normalizeWordForSelection(word) {
+    // Prefer US spellings for consistency
+    const variants = {
+    'honour': 'honor',     // 'honor' is in your list
+    'labour': 'labor',     // 'labor' is in your list
+    'favour': 'favor',     // 'favor' is in your list
+    
+    // Common variations that might appear in hints
+    'colour': 'color',     // might appear in hints for words like 'paint'
+    'flavour': 'flavor',   // might appear in hints for words like 'taste'
+    'harbour': 'harbor',   // 'harbor' is in your list
+    'centre': 'center',    // might appear in hints for words like 'middle'
+    'metre': 'meter',      // might appear in hints for geometry-related words
+    'theatre': 'theater',  // might appear in hints for words like 'stage'
+    'defence': 'defense',  // might appear in hints for words like 'shield'
+    'offence': 'offense',  // might appear in hints for combat-related words
+    
+    // Nature/Science related (relevant to your nature words)
+    'grey': 'gray',        // might appear in color-related hints
+    'plough': 'plow',      // might appear in hints for farming words like 'field'
+    
+    // Action words (relevant to your verbs)
+    'analyse': 'analyze',  // might appear in hints for thinking words
+    'practise': 'practice',// might appear in hints for skill words
+    'catalogue': 'catalog',// might appear in hints for organizing words
+    
+    // Building/Structure related (relevant to your construction words)
+    'storey': 'story',    // might appear in hints for 'building' related words
+    'armour': 'armor'    
+    };
+    
+    return variants[word.toLowerCase()] || word;
+}
+
 function getDateString() {
     const now = new Date();
     return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
@@ -98,18 +133,25 @@ function seededRandom(seed) {
     return x - Math.floor(x);
 }
 
-function getDailyWord() {
-    const startDate = new Date(dailyWords.startDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    startDate.setHours(0, 0, 0, 0);
+function getDailyWord(clientDateString) {
+    // Use the client's date if provided, otherwise use server date
+    const clientDate = clientDateString ? new Date(clientDateString) : new Date();
     
-    const daysDiff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
-    const seed = parseInt(today.toISOString().split('T')[0].replace(/-/g, ''));
+    console.log('Word selection:', {
+        clientDateString,
+        clientDate: clientDate.toISOString()
+    });
+
+    const startDate = new Date(dailyWords.startDate);
+    const daysDiff = Math.floor((clientDate - startDate) / (1000 * 60 * 60 * 24));
+    const seed = parseInt(clientDate.toISOString().split('T')[0].replace(/-/g, ''));
+    
+    let selectedWord = dailyWords.words[Math.floor(seededRandom(seed) * dailyWords.words.length)];
+    selectedWord = normalizeWordForSelection(selectedWord);
     
     return {
-        word: dailyWords.words[Math.floor(seededRandom(seed) * dailyWords.words.length)],
-        dateString: today.toISOString().split('T')[0],
+        word: selectedWord,
+        dateString: clientDate.toISOString().split('T')[0],
         wordNumber: daysDiff + 1
     };
 }
@@ -197,6 +239,7 @@ async function loadWordVectors() {
         const data = await fs.readFile(path.join(__dirname, 'data/vectors-10k.json'), 'utf8');
         wordVectors = JSON.parse(data);
         wordList = Object.keys(wordVectors);
+        vectorsLoaded = true;  // Add this line!
         
         // Load target words
         const targetWordsData = await fs.readFile(path.join(__dirname, 'data/common-words.json'), 'utf8');
@@ -268,8 +311,47 @@ function getRelatedWords(word) {
     }
 
     try {
+        // Add a function to check if two words are variants of each other
+        const areVariants = (word1, word2) => {
+            const variants = {
+                'honour': 'honor',     // 'honor' is in your list
+                'labour': 'labor',     // 'labor' is in your list
+                'favour': 'favor',     // 'favor' is in your list
+                
+                // Common variations that might appear in hints
+                'colour': 'color',     // might appear in hints for words like 'paint'
+                'flavour': 'flavor',   // might appear in hints for words like 'taste'
+                'harbour': 'harbor',   // 'harbor' is in your list
+                'centre': 'center',    // might appear in hints for words like 'middle'
+                'metre': 'meter',      // might appear in hints for geometry-related words
+                'theatre': 'theater',  // might appear in hints for words like 'stage'
+                'defence': 'defense',  // might appear in hints for words like 'shield'
+                'offence': 'offense',  // might appear in hints for combat-related words
+                
+                // Nature/Science related (relevant to your nature words)
+                'grey': 'gray',        // might appear in color-related hints
+                'plough': 'plow',      // might appear in hints for farming words like 'field'
+                
+                // Action words (relevant to your verbs)
+                'analyse': 'analyze',  // might appear in hints for thinking words
+                'practise': 'practice',// might appear in hints for skill words
+                'catalogue': 'catalog',// might appear in hints for organizing words
+                
+                // Building/Structure related (relevant to your construction words)
+                'storey': 'story',    // might appear in hints for 'building' related words
+                'armour': 'armor'     // might appear in hints for protection words
+            };
+            const normalized1 = variants[word1.toLowerCase()] || word1.toLowerCase();
+            const normalized2 = variants[word2.toLowerCase()] || word2.toLowerCase();
+            return normalized1 === normalized2;
+        };
+
         const candidates = Object.entries(wordVectors)
-            .filter(([w]) => commonWords.has(w))
+            .filter(([w]) => {
+                // Filter out the target word and its variants
+                if (areVariants(w, word)) return false;
+                return commonWords.has(w);
+            })
             .map(([w, vec]) => ({
                 word: w,
                 similarity: cosineSimilarity(vec, wordVectors[word])
@@ -286,7 +368,10 @@ function getRelatedWords(word) {
 
         if (relatedWords.size < 5) {
             const broaderCandidates = Object.entries(wordVectors)
-                .filter(([w]) => commonWords.has(w) && !relatedWords.has(w))
+                .filter(([w]) => {
+                    if (areVariants(w, word)) return false;
+                    return commonWords.has(w) && !relatedWords.has(w);
+                })
                 .map(([w, vec]) => ({
                     word: w,
                     similarity: cosineSimilarity(vec, wordVectors[word])
@@ -539,11 +624,58 @@ app.get('/calculate-score', (req, res) => {
 });
 
 
-
 app.get('/get-target-word', (req, res) => {
-    const { word, dateString, wordNumber } = getDailyWord();
-    const hints = getHints(word);
-    res.json({ word, hints, dateString, wordNumber });
+    const clientDate = req.query.clientDate;
+    const wordData = getDailyWord(clientDate);
+    
+    // Get related words and handle variants
+    const relatedWords = getRelatedWords(wordData.word)
+        .map(word => {
+            // Check if it's a variant
+            const variants = {
+                'honour': 'honor',     // 'honor' is in your list
+                'labour': 'labor',     // 'labor' is in your list
+                'favour': 'favor',     // 'favor' is in your list
+                
+                // Common variations that might appear in hints
+                'colour': 'color',     // might appear in hints for words like 'paint'
+                'flavour': 'flavor',   // might appear in hints for words like 'taste'
+                'harbour': 'harbor',   // 'harbor' is in your list
+                'centre': 'center',    // might appear in hints for words like 'middle'
+                'metre': 'meter',      // might appear in hints for geometry-related words
+                'theatre': 'theater',  // might appear in hints for words like 'stage'
+                'defence': 'defense',  // might appear in hints for words like 'shield'
+                'offence': 'offense',  // might appear in hints for combat-related words
+                
+                // Nature/Science related (relevant to your nature words)
+                'grey': 'gray',        // might appear in color-related hints
+                'plough': 'plow',      // might appear in hints for farming words like 'field'
+                
+                // Action words (relevant to your verbs)
+                'analyse': 'analyze',  // might appear in hints for thinking words
+                'practise': 'practice',// might appear in hints for skill words
+                'catalogue': 'catalog',// might appear in hints for organizing words
+                
+                // Building/Structure related (relevant to your construction words)
+                'storey': 'story',    // might appear in hints for 'building' related words
+                'armour': 'armor'   
+                // ... rest of your variants ...
+            };
+            return variants[word.toLowerCase()] || word;
+        });
+
+    // Get hints for the word
+    const hints = [
+        `Think about these related words: ${relatedWords.join(', ')}`,
+        `This is a common word. Starts with '${wordData.word[0].toUpperCase()}'`,
+        `Has ${wordData.word.length} letters`
+    ];
+
+    // Send both word data and hints
+    res.json({
+        ...wordData,
+        hints: hints
+    });
 });
 
 app.get('/leaderboards', (req, res) => {
@@ -553,6 +685,14 @@ app.get('/leaderboards', (req, res) => {
     });
 });
 
+app.get('/debug-time', (req, res) => {
+    const clientDate = req.query.clientDate;
+    res.json({
+        serverTime: new Date().toISOString(),
+        clientDate: clientDate,
+        wordDetails: getDailyWord(clientDate)
+    });
+});
 app.post('/submit-score', express.json(), (req, res) => {
     const { name, score, gamesPlayed, averageScore } = req.body;
     

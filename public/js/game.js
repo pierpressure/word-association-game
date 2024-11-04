@@ -81,6 +81,37 @@ static FAILURE_MESSAGES = [
     "me to this word: and i oop- 🫢"
 ];
 
+static WORD_VARIANTS = {
+    // Known cases from your word list
+    'honour': 'honor',     // 'honor' is in your list
+    'labour': 'labor',     // 'labor' is in your list
+    'favour': 'favor',     // 'favor' is in your list
+    
+    // Common variations that might appear in hints
+    'colour': 'color',     // might appear in hints for words like 'paint'
+    'flavour': 'flavor',   // might appear in hints for words like 'taste'
+    'harbour': 'harbor',   // 'harbor' is in your list
+    'centre': 'center',    // might appear in hints for words like 'middle'
+    'metre': 'meter',      // might appear in hints for geometry-related words
+    'theatre': 'theater',  // might appear in hints for words like 'stage'
+    'defence': 'defense',  // might appear in hints for words like 'shield'
+    'offence': 'offense',  // might appear in hints for combat-related words
+    
+    // Nature/Science related (relevant to your nature words)
+    'grey': 'gray',        // might appear in color-related hints
+    'plough': 'plow',      // might appear in hints for farming words like 'field'
+    
+    // Action words (relevant to your verbs)
+    'analyse': 'analyze',  // might appear in hints for thinking words
+    'practise': 'practice',// might appear in hints for skill words
+    'catalogue': 'catalog',// might appear in hints for organizing words
+    
+    // Building/Structure related (relevant to your construction words)
+    'storey': 'story',    // might appear in hints for 'building' related words
+    'armour': 'armor'     // might appear in hints for protection words
+};
+
+
     constructor() {
         this.MAX_GUESSES = 5;
         this.gameState = {
@@ -100,21 +131,28 @@ static FAILURE_MESSAGES = [
         this.scoreTracker = new ScoreTracker();
 
         const lastPlayed = localStorage.getItem('lastPlayedDate');
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayString = today.toISOString().split('T')[0];
-        
-        if (lastPlayed === todayString) {
-            this.showAlreadyPlayedMessage();
-            return;
-        }
+        const today = new Date().toISOString().split('T')[0];  // Use local date
+            
+        if (lastPlayed === today) {
+                this.showAlreadyPlayedMessage();
+                return;
+            }
 
-        this.initializeDOM();
-        this.attachEventListeners();
-        this.initGame();
+            this.initializeDOM();
+            this.attachEventListeners();
+            this.initGame();
+
        if (!localStorage.getItem('tutorialShown')) {
             this.showFirstTimeExperience();
         }
+    }
+
+    normalizeWord(word) {
+        word = word.toLowerCase().trim();
+        // Check both directions of variant spellings
+        return WordGame.WORD_VARIANTS[word] || 
+               Object.entries(WordGame.WORD_VARIANTS).find(([_, v]) => v === word)?.[0] || 
+               word;
     }
 
     static getScoreSummaryHTML(score, hintsUsed) {
@@ -395,8 +433,17 @@ cleanupOldGuesses() {
 
 async initGame() {
     try {
-        const response = await fetch('/get-target-word');
+        // Get client's local date in YYYY-MM-DD format
+        const today = new Date();
+        const clientDate = today.toISOString().split('T')[0];
+        
+        const response = await fetch(`/get-target-word?clientDate=${clientDate}`);
         const data = await response.json();
+        
+        console.log('Game initialization:', {
+            clientDate,
+            serverResponse: data
+        });
         
         this.gameState = {
             ...this.gameState,
@@ -489,9 +536,10 @@ showHints() {
     if (firstHint) {
         const hintWordsMatch = firstHint.match(/related words: (.*?)$/);
         if (hintWordsMatch) {
-            const hintWords = hintWordsMatch[1].split(', ').map(word => word.toLowerCase());
+            const hintWords = hintWordsMatch[1].split(', ')
+                .map(word => this.normalizeWord(word.trim()));
             this.gameState.shownHintWords = new Set(hintWords);
-            console.log('Stored hint words:', Array.from(this.gameState.shownHintWords));
+            console.log('Stored normalized hint words:', Array.from(this.gameState.shownHintWords));
         }
     }
 
@@ -544,6 +592,13 @@ showHints() {
     if (firstHintButton) {
         this.revealHint(0, firstHintButton, true);
     }
+}
+
+async checkTimeSync() {
+    const clientDate = new Date().toISOString().split('T')[0];
+    const response = await fetch(`/debug-time?clientDate=${clientDate}`);
+    const data = await response.json();
+    console.log('Time sync check:', data);
 }
 
 revealHint(index, button, isFree = false) {
@@ -965,10 +1020,12 @@ async makeGuess() {
         this.guessInput.classList.add('error');
     }
 }
+
 storeGuessHistory(guess, data, guessPoints) {
     const dateKey = `guessHistory_${this.gameState.dateString}`;
     let guessHistory = JSON.parse(localStorage.getItem(dateKey) || '[]');
     
+    // Add new guess
     guessHistory.push({
         word: guess,
         score: data.score,
@@ -978,7 +1035,7 @@ storeGuessHistory(guess, data, guessPoints) {
         color: data.color
     });
     
-    // Update to check against MAX_GUESSES instead of hardcoded 3
+    // Ensure we only keep the most recent MAX_GUESSES
     if (guessHistory.length > this.MAX_GUESSES) {
         guessHistory = guessHistory.slice(-this.MAX_GUESSES);
     }
@@ -998,6 +1055,22 @@ calculateGuessPoints(matchScore) {
 
     // Check if guess was a hint word
     const currentGuess = this.guessInput.value.trim().toLowerCase();
+    const normalizedGuess = this.normalizeWord(currentGuess);
+    
+    // Convert hint words Set to Array, normalize each word, and check for match
+    const normalizedHintWords = Array.from(this.gameState.shownHintWords)
+        .map(word => this.normalizeWord(word));
+    
+    if (normalizedHintWords.includes(normalizedGuess)) {
+        console.log('Hint word variant detected:', {
+            original: currentGuess,
+            normalized: normalizedGuess,
+            hintWords: normalizedHintWords
+        });
+        return 90;  // Score for hint words
+    }
+
+
     if (this.gameState.shownHintWords.has(currentGuess)) {
         return 90;
     }
