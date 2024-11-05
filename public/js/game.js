@@ -131,12 +131,13 @@ static WORD_VARIANTS = {
         this.scoreTracker = new ScoreTracker();
 
         const lastPlayed = localStorage.getItem('lastPlayedDate');
-        const today = new Date().toISOString().split('T')[0];  // Use local date
+        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
             
         if (lastPlayed === today) {
-                this.showAlreadyPlayedMessage();
-                return;
-            }
+            this.showAlreadyPlayedMessage();
+            return;
+        }
+
 
             this.initializeDOM();
             this.attachEventListeners();
@@ -433,9 +434,13 @@ cleanupOldGuesses() {
 
 async initGame() {
     try {
-        // Get client's local date in YYYY-MM-DD format
-        const today = new Date();
-        const clientDate = today.toISOString().split('T')[0];
+        // Use the client's local date
+        const clientDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
+        console.log('Initializing game with client date:', {
+            rawDate: new Date(),
+            formattedDate: clientDate,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        });
         
         const response = await fetch(`/get-target-word?clientDate=${clientDate}`);
         const data = await response.json();
@@ -449,7 +454,7 @@ async initGame() {
             ...this.gameState,
             targetWord: data.word,
             hints: data.hints,
-            dateString: data.dateString,
+            dateString: clientDate,
             wordNumber: data.wordNumber,
             guessesLeft: this.MAX_GUESSES,
             score: 0,
@@ -1279,7 +1284,6 @@ applyFinalScore(isWin) {
             await this.submitAccumulatedScore();
         }
         
-        // Create end game modal with close button
         const endGameElement = this.createAnimatedElement(
             'div',
             'end-game-modal',
@@ -1305,6 +1309,47 @@ applyFinalScore(isWin) {
                         <p class="target-word">The word was: <span class="highlight">${this.gameState.targetWord}</span></p>
                         <p class="daily-info">WordMaster ${this.gameState.dateString}</p>
                     </div>
+
+                    <!-- Share button near the top -->
+                      <button class="share-button" onclick="
+                        navigator.clipboard.writeText(\`${shareText}\`).then(() => {
+                            // Find the tooltip within this specific modal
+                            const tooltip = this.closest('.end-game-content').querySelector('.share-tooltip');
+                            tooltip.classList.add('show');
+                            setTimeout(() => {
+                                tooltip.classList.remove('show');
+                            }, 2000);
+                        })">
+                        <div class="button-content">
+                            <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
+                                <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
+                            </svg>
+                            <span>Share Your Score!</span>
+                        </div>
+                    </button>
+                    <div class="share-tooltip">Copied to clipboard!</div>
+
+
+                    <!-- Add back the guess history -->
+                    <div class="guess-history">
+                        <h3>Your Guesses:</h3>
+                        ${(() => {
+                            const dateKey = `guessHistory_${this.gameState.dateString}`;
+                            const guessHistory = JSON.parse(localStorage.getItem(dateKey) || '[]');
+                            return guessHistory.map(guess => `
+                                <div class="guess-item" style="background: ${guess.color}20">
+                                    <div class="guess-word">${guess.word}</div>
+                                    <div class="guess-feedback">
+                                        <span class="guess-score">Match: ${guess.score}%</span>
+                                        <span class="points-earned">+${guess.points} points</span>
+                                        <span class="guess-message">${guess.message}</span>
+                                        <span class="emoji">${guess.emoji}</span>
+                                    </div>
+                                </div>
+                            `).join('');
+                        })()}
+                    </div>
+
                     <div class="score-showcase">
                         <div class="final-score-display">
                             <span class="score-label">Final Score</span>
@@ -1332,29 +1377,6 @@ applyFinalScore(isWin) {
                             <div class="highscore-text">New High Score!</div>
                         </div>
                     ` : ''}
-
-                <div class="share-section">
-                    <div class="share-preview">
-                        <h4>Share your results!</h4>
-                        ${shareText.split('\n').map(line => 
-                            `<div class="share-line">${line}</div>`
-                        ).join('')}
-                    </div>
-                    
-                    <button class="share-button" onclick="navigator.clipboard.writeText(\`${shareText}\`).then(() => {
-                        document.querySelector('.share-tooltip').classList.add('show');
-                        setTimeout(() => {
-                            document.querySelector('.share-tooltip').classList.remove('show');
-                        }, 2000);
-                    })">
-                        <div class="button-content">
-                            <svg class="share-icon" width="24" height="24" viewBox="0 0 24 24">
-                                <path fill="currentColor" d="M16,5L19,8L7,20L3,20L3,16L16,5M21,15L21,21L15,21L15,19L19,19L19,15L21,15Z"/>
-                            </svg>
-                            <span>Share Your Score!</span>
-                        </div>
-                    </button>
-                    <div class="share-tooltip">Copied to clipboard!</div>
                 </div>
             `,
             this.gameContainer

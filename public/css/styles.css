@@ -844,11 +844,43 @@ button:disabled {
     padding: 1rem;
     overflow-y: auto;
 }
+.end-game-modal .share-tooltip {
+    position: fixed;
+    left: 50%;
+    bottom: 20%;
+    transform: translateX(-50%);
+    background: #1a2027;
+    color: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    z-index: 1100;
+    white-space: nowrap;
+}
+
+
+.end-game-modal .share-tooltip.show {
+    opacity: 1;
+    bottom: 22%;
+}
+
+.end-game-modal .share-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #1a2027;
+}
 
 .end-game-content {
     background: white;
     border-radius: 24px;
-    padding: 1.5rem;
+    padding: 1.5rem 1.5rem calc(1.5rem + 80px) 1.5rem; /* Add padding at bottom for share button */
     max-width: 90%;
     width: 500px;
     max-height: 90vh;
@@ -859,9 +891,8 @@ button:disabled {
     animation: slideUp 0.5s ease-out;
 }
 
-.end-game-content {
-    scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+.end-game-content > *:not(.share-section):last-child {
+    margin-bottom: 80px; /* Match height of share section */
 }
 
 .end-game-content::-webkit-scrollbar {
@@ -879,8 +910,8 @@ button:disabled {
 
 .end-game-header {
     text-align: center;
-    margin-bottom: 2rem;
-    padding-bottom: 2rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
     border-bottom: 2px solid #f1f5f9;
 }
 
@@ -916,11 +947,9 @@ button:disabled {
     font-weight: 600;
 }
 
-.score-showcase {
-    background: #f8fafc;
-    border-radius: 16px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
+..score-showcase {
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
 }
 
 .final-score-display {
@@ -1018,23 +1047,34 @@ button:disabled {
 }
 
 .share-section {
-    position: relative;  /* Important for tooltip positioning */
-    margin: 2rem 0;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 3rem);  /* Account for modal padding */
+    max-width: 470px;  /* Slightly less than modal width */
+    background: white;
+    padding: 1rem;
+    border-top: 1px solid #f1f5f9;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 2;
+    border-radius: 0 0 24px 24px;
 }
-
 
 .share-preview {
-    background: #f8fafc;
-    padding: 1rem;
-    border-radius: 12px;
-    margin-bottom: 1rem;
-    font-family: monospace;
+    display: none; /* Hide the preview by default */
 }
+
 
 .share-preview h4 {
     color: #6366f1;
     margin-bottom: 0.75rem;
     font-size: 1.1rem;
+}
+
+.share-preview.show {
+    display: block;
+    margin-top: 1rem;
 }
 
 .share-line {
@@ -1049,11 +1089,10 @@ button:disabled {
 
 .share-button {
     width: 100%;
-    padding: 1rem 1.5rem;
+    padding: 0.875rem 1.5rem;
     background: #6366f1;
     color: white;
     border: none;
-    animation: pulse 3s infinite;
     border-radius: 12px;
     font-size: 1.1rem;
     font-weight: 600;
@@ -1070,6 +1109,22 @@ button:disabled {
     background: #4f46e5;
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3);
+}
+
+.view-share-text {
+    color: #6366f1;
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+}
+
+.view-share-text:hover {
+    text-decoration: underline;
 }
 
 .button-content {
@@ -1243,15 +1298,18 @@ button:disabled {
 
 @media (max-height: 700px) {
     .end-game-content {
-        padding: 1rem;
+        padding: 1rem 1rem calc(1rem + 80px) 1rem;
     }
     
-    .score-showcase,
     .share-section {
         padding: 0.75rem;
-        margin: 0.75rem 0;
     }
     
+    .score-showcase {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
     .result-emoji {
         font-size: 3rem;
         margin-bottom: 0.5rem;

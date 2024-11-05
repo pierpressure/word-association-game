@@ -88,6 +88,41 @@ async function saveLeaderboards() {
     }
 }
 
+function getWordStem(word) {
+    // Common suffixes to check
+    const suffixes = [
+        'ed', 'ing', 's', 'es', 'd', 
+        'er', 'ers', 'est',
+        'ly', 'ily',
+        'ness', 'less',
+        'able', 'ible',
+        'tion', 'sion', 'ment'
+    ];
+    
+    // Sort by length (longest first) to handle cases like 'iness' before 'ing'
+    suffixes.sort((a, b) => b.length - a.length);
+    
+    let stem = normalizeWordForSelection(word.toLowerCase());
+    
+    for (const suffix of suffixes) {
+        if (stem.endsWith(suffix)) {
+            // Special cases for doubled consonants
+            let withoutSuffix = stem.slice(0, -suffix.length);
+            
+            // Handle doubled consonants (e.g., 'shared' -> 'share')
+            if (suffix === 'ed' && withoutSuffix.match(/[^aeiou][aeiou][^aeiou]$/)) {
+                withoutSuffix = withoutSuffix.slice(0, -1);
+            }
+            
+            // Only return stem if it exists in our word vectors
+            if (wordVectors[withoutSuffix]) {
+                return withoutSuffix;
+            }
+        }
+    }
+    
+    return stem;
+}
 
 function normalizeWordForSelection(word) {
     // Prefer US spellings for consistency
@@ -134,24 +169,30 @@ function seededRandom(seed) {
 }
 
 function getDailyWord(clientDateString) {
-    // Use the client's date if provided, otherwise use server date
-    const clientDate = clientDateString ? new Date(clientDateString) : new Date();
+    if (!clientDateString) {
+        console.error('No client date provided');
+        clientDateString = new Date().toLocaleDateString('en-CA');
+    }
+
+    // Parse the client's date string
+    const clientDate = new Date(clientDateString);
     
     console.log('Word selection:', {
         clientDateString,
-        clientDate: clientDate.toISOString()
+        clientDate: clientDate.toISOString(),
+        clientTimestamp: clientDate.getTime()
     });
 
     const startDate = new Date(dailyWords.startDate);
     const daysDiff = Math.floor((clientDate - startDate) / (1000 * 60 * 60 * 24));
-    const seed = parseInt(clientDate.toISOString().split('T')[0].replace(/-/g, ''));
+    const seed = parseInt(clientDateString.replace(/-/g, ''));
     
     let selectedWord = dailyWords.words[Math.floor(seededRandom(seed) * dailyWords.words.length)];
     selectedWord = normalizeWordForSelection(selectedWord);
     
     return {
         word: selectedWord,
-        dateString: clientDate.toISOString().split('T')[0],
+        dateString: clientDateString,
         wordNumber: daysDiff + 1
     };
 }
@@ -304,6 +345,7 @@ function getRelatedWords(word) {
     console.log(`Getting related words for: ${word}`);
 
     let relatedWords = new Set();
+    let usedStems = new Set();  // Track word stems we've already used
     
     if (!wordVectors[word]) {
         console.error(`No vector found for word: ${word}`);
@@ -311,46 +353,28 @@ function getRelatedWords(word) {
     }
 
     try {
-        // Add a function to check if two words are variants of each other
-        const areVariants = (word1, word2) => {
-            const variants = {
-                'honour': 'honor',     // 'honor' is in your list
-                'labour': 'labor',     // 'labor' is in your list
-                'favour': 'favor',     // 'favor' is in your list
-                
-                // Common variations that might appear in hints
-                'colour': 'color',     // might appear in hints for words like 'paint'
-                'flavour': 'flavor',   // might appear in hints for words like 'taste'
-                'harbour': 'harbor',   // 'harbor' is in your list
-                'centre': 'center',    // might appear in hints for words like 'middle'
-                'metre': 'meter',      // might appear in hints for geometry-related words
-                'theatre': 'theater',  // might appear in hints for words like 'stage'
-                'defence': 'defense',  // might appear in hints for words like 'shield'
-                'offence': 'offense',  // might appear in hints for combat-related words
-                
-                // Nature/Science related (relevant to your nature words)
-                'grey': 'gray',        // might appear in color-related hints
-                'plough': 'plow',      // might appear in hints for farming words like 'field'
-                
-                // Action words (relevant to your verbs)
-                'analyse': 'analyze',  // might appear in hints for thinking words
-                'practise': 'practice',// might appear in hints for skill words
-                'catalogue': 'catalog',// might appear in hints for organizing words
-                
-                // Building/Structure related (relevant to your construction words)
-                'storey': 'story',    // might appear in hints for 'building' related words
-                'armour': 'armor'     // might appear in hints for protection words
-            };
-            const normalized1 = variants[word1.toLowerCase()] || word1.toLowerCase();
-            const normalized2 = variants[word2.toLowerCase()] || word2.toLowerCase();
-            return normalized1 === normalized2;
-        };
-
         const candidates = Object.entries(wordVectors)
             .filter(([w]) => {
-                // Filter out the target word and its variants
-                if (areVariants(w, word)) return false;
-                return commonWords.has(w);
+                // Normalize both words
+                const normalizedW = normalizeWordForSelection(w);
+                const normalizedTarget = normalizeWordForSelection(word);
+                
+                // Filter out the target word and normalized variants
+                if (normalizedW === normalizedTarget) return false;
+                
+                // Only use common words
+                if (!commonWords.has(w)) return false;
+                
+                // Get stem of current candidate
+                const stem = getWordStem(w);
+                
+                // If we've already used this stem, skip it
+                if (usedStems.has(stem)) return false;
+                
+                // Mark this stem as used
+                usedStems.add(stem);
+                
+                return true;
             })
             .map(([w, vec]) => ({
                 word: w,
@@ -363,14 +387,33 @@ function getRelatedWords(word) {
         
         console.log(`Found ${candidates.length} initial candidates for: ${word}`);
         
-        const goodHints = candidates.filter(w => isGoodHintWord(w, word));
-        goodHints.slice(0, 5).forEach(w => relatedWords.add(w));
+        const goodHints = candidates
+            .filter(w => isGoodHintWord(w, word))
+            .slice(0, 5);
 
+        // Log the filtered words and their stems for debugging
+        console.log('Chosen hints with stems:', 
+            goodHints.map(w => ({
+                word: w,
+                stem: getWordStem(w)
+            }))
+        );
+
+        goodHints.forEach(w => relatedWords.add(w));
+
+        // If we need more words, get broader candidates
         if (relatedWords.size < 5) {
             const broaderCandidates = Object.entries(wordVectors)
                 .filter(([w]) => {
-                    if (areVariants(w, word)) return false;
-                    return commonWords.has(w) && !relatedWords.has(w);
+                    if (normalizeWordForSelection(w) === normalizeWordForSelection(word)) return false;
+                    if (!commonWords.has(w)) return false;
+                    if (relatedWords.has(w)) return false;
+                    
+                    const stem = getWordStem(w);
+                    if (usedStems.has(stem)) return false;
+                    
+                    usedStems.add(stem);
+                    return true;
                 })
                 .map(([w, vec]) => ({
                     word: w,
@@ -398,6 +441,7 @@ function getRelatedWords(word) {
         return [];
     }
 }
+
 function getFeedback(score) {
     if (score === 100) return { message: "Perfect match!", color: "#2ecc71", emoji: "🎯" };
     if (score >= 90) return { message: "Extremely close!", color: "#27ae60", emoji: "🔥" };
@@ -690,6 +734,7 @@ app.get('/debug-time', (req, res) => {
     res.json({
         serverTime: new Date().toISOString(),
         clientDate: clientDate,
+        clientParsed: clientDate ? new Date(clientDate).toISOString() : null,
         wordDetails: getDailyWord(clientDate)
     });
 });
