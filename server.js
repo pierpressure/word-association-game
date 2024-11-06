@@ -517,6 +517,38 @@ function getWordHints(word) {
     };
 }
 
+function getSingularForm(word) {
+    word = word.toLowerCase().trim();
+    
+    // Handle words ending in 'ies' -> 'y'
+    if (word.endsWith('ies')) {
+        // Make sure it's not just a word ending in 'ies' (e.g., 'ties' -> 'tie')
+        if (word.length > 3 && !'aeiou'.includes(word[word.length - 4])) {
+            return word.slice(0, -3) + 'y';
+        }
+    }
+    
+    // Handle words ending in 'es'
+    if (word.endsWith('es')) {
+        // Special cases where we remove 'es'
+        if (word.endsWith('shes') || 
+            word.endsWith('ches') || 
+            word.endsWith('xes') || 
+            word.endsWith('zes') || 
+            word.endsWith('sses')) {
+            return word.slice(0, -2);
+        }
+        // Regular 's' ending
+        return word.slice(0, -1);
+    }
+    
+    // Handle regular 's' ending
+    if (word.endsWith('s') && !word.endsWith('ss')) {
+        return word.slice(0, -1);
+    }
+    
+    return word;
+}
 
 function getHints(word) {
     const hints = [];
@@ -593,19 +625,29 @@ app.get('/', (req, res) => {
 });
 
 // Fix the calculate-score endpoint:
-// In server.js, update the calculate-score endpoint
 app.get('/calculate-score', (req, res) => {
-    const { guess, target } = req.query;
+    let { guess, target } = req.query;
     
     if (!guess || !target) {
         return res.status(400).json({ error: 'Missing guess or target word' });
     }
 
-    const guessLower = guess.toLowerCase();
-    const targetLower = target.toLowerCase();
+    // Normalize both guess and target
+    const guessLower = guess.toLowerCase().trim();
+    const targetLower = target.toLowerCase().trim();
 
-    // First check if it's a valid English word
-    if (!isValidWord(guessLower)) {
+    // Get singular forms
+    const normalizedGuess = getSingularForm(guessLower);
+    const normalizedTarget = getSingularForm(targetLower);
+
+    // Log for debugging
+    console.log('Word forms:', {
+        original: { guess: guessLower, target: targetLower },
+        normalized: { guess: normalizedGuess, target: normalizedTarget }
+    });
+
+    // First check if it's a valid English word (check both original and singular form)
+    if (!isValidWord(guessLower) && !isValidWord(normalizedGuess)) {
         return res.json({ 
             score: null,
             message: "Not a valid English word, try again", 
@@ -616,10 +658,9 @@ app.get('/calculate-score', (req, res) => {
 
     // Get related words (hints) for the target word
     const hintWords = getRelatedWords(targetLower);
-    console.log('Hint words for', targetLower, ':', hintWords);
     
-    // Check if guess is a hint word
-    if (hintWords.includes(guessLower)) {
+    // Check if guess is a hint word (check both forms)
+    if (hintWords.includes(guessLower) || hintWords.includes(normalizedGuess)) {
         console.log('Guess is a hint word:', guessLower);
         return res.json({
             score: 90,
@@ -630,7 +671,7 @@ app.get('/calculate-score', (req, res) => {
     }
 
     // Check for exact match AFTER checking if it's a hint word
-    if (guessLower === targetLower) {
+    if (guessLower === targetLower || normalizedGuess === normalizedTarget) {
         return res.json({ 
             score: 100,
             message: "Perfect match!",
@@ -639,34 +680,30 @@ app.get('/calculate-score', (req, res) => {
         });
     }
 
-    // Calculate similarity if we have vectors
+    // Calculate similarity using both forms and take the better score
+    let similarity = 0;
+    
     if (wordVectors[guessLower] && wordVectors[targetLower]) {
-        const similarity = cosineSimilarity(
-            wordVectors[guessLower],
-            wordVectors[targetLower]
-        );
-        
-        // Use new scoring function
-        const calculatedScore = calculateScore(similarity);
-        
-        // Get feedback based on calculated score
-        const feedback = getFeedback(calculatedScore);
-        
-        return res.json({
-            score: calculatedScore,
-            ...feedback
-        });
+        similarity = cosineSimilarity(wordVectors[guessLower], wordVectors[targetLower]);
     }
-
-    // If we don't have vectors but it's a valid word
-    return res.json({ 
-        score: 10,
-        message: "Valid word, but not very related",
-        color: "#95a5a6",
-        emoji: "🤔"
+    
+    // Try with normalized forms if they exist in vectors
+    if (wordVectors[normalizedGuess] && wordVectors[normalizedTarget]) {
+        const normalizedSimilarity = cosineSimilarity(
+            wordVectors[normalizedGuess], 
+            wordVectors[normalizedTarget]
+        );
+        similarity = Math.max(similarity, normalizedSimilarity);
+    }
+    
+    const calculatedScore = calculateScore(similarity);
+    const feedback = getFeedback(calculatedScore);
+    
+    return res.json({
+        score: calculatedScore,
+        ...feedback
     });
 });
-
 
 app.get('/get-target-word', (req, res) => {
     const clientDate = req.query.clientDate;

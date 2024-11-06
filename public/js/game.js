@@ -447,7 +447,7 @@ async initGame() {
         
         console.log('Game initialization:', {
             clientDate,
-            serverResponse: data
+            // serverResponse: data
         });
         
         this.gameState = {
