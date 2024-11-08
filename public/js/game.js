@@ -542,9 +542,15 @@ showHints() {
         const hintWordsMatch = firstHint.match(/related words: (.*?)$/);
         if (hintWordsMatch) {
             const hintWords = hintWordsMatch[1].split(', ')
-                .map(word => this.normalizeWord(word.trim()));
-            this.gameState.shownHintWords = new Set(hintWords);
-            console.log('Stored normalized hint words:', Array.from(this.gameState.shownHintWords));
+                .map(word => `<span class="hint-word">${word.trim()}</span>`);
+            
+            // Replace the plain text with styled words
+            const formattedHint = firstHint.replace(
+                /related words: .*$/,
+                `related words: ${hintWords.join(', ')}`
+            );
+            
+            this.gameState.hints[0] = formattedHint;
         }
     }
 
