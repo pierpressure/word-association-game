@@ -556,33 +556,43 @@ showHints() {
             ${this.gameState.hints.map((hint, index) => {
                 let hintLabel;
                 if (index === 0) {
-                    hintLabel = '<span class="hint-label">First Hint <span class="hint-cost free">Always Free</span></span>';
+                    hintLabel = `
+                        <span class="hint-label">
+                            <span class="hint-icon">👋</span>
+                            First Hint 
+                            <span class="hint-cost free">Always Free!</span>
+                        </span>`;
                 } else {
-                    hintLabel = `<span class="hint-label">Hint ${index + 1} <span class="hint-cost">Lowers max possible score 🫣</span></span>`;
+                    hintLabel = `
+                        <span class="hint-label">
+                            Hint ${index + 1} 
+                            <span class="hint-cost">Lowers max score 🫣</span>
+                        </span>`;
                 }
                 
                 return `
-                    <div class="hint-item">
+                    <div class="hint-item${index === 0 ? ' first-hint' : ''}">
                         <button class="hint-button" data-hint-index="${index}">
                             ${hintLabel}
                         </button>
                         <div class="hint-content" style="display: none;">
                             ${hint}
-                            ${index === 0 ? '' : 
-                                '<div class="hint-info">Using hints changes your maximum possible points:</div>' +
-                                '<div class="score-breakdown">' +
-                                    '<div>Perfect guess with no hints: 1000 points maximum</div>' +
-                                    '<div>Perfect guess with one hint: 750 points maximum</div>' +
-                                    '<div>Perfect guess with both hints: 500 points maximum</div>' +
-                                    '<div class="note">You have 5 chances to find the word!</div>' +
-                                '</div>'
-                            }
+                            ${index === 0 ? '' : `
+                                <div class="hint-info">Using hints changes your maximum possible points:</div>
+                                <div class="score-breakdown">
+                                    <div class="score-item">Perfect guess with no hints: 1000 points maximum</div>
+                                    <div class="score-item">Perfect guess with one hint: 750 points maximum</div>
+                                    <div class="score-item">Perfect guess with both hints: 500 points maximum</div>
+                                    <div class="note">You have 5 chances to find the word!</div>
+                                </div>
+                            `}
                         </div>
                     </div>
                 `;
             }).join('')}
         </div>
     `;
+
 
     // Add click handlers for hint buttons
     this.hintsPanel.querySelectorAll('.hint-button').forEach(button => {
