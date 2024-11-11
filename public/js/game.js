@@ -584,6 +584,7 @@ showHints() {
                         <div class="hint-content" style="display: none;">
                             ${hint}
                             ${index === 0 ? '' : `
+                                <br></br>
                                 <div class="hint-info">Using hints changes your maximum possible points:</div>
                                 <div class="score-breakdown">
                                     <div class="score-item">Perfect guess with no hints: 1000 points maximum</div>

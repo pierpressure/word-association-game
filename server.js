@@ -38,6 +38,28 @@ let vectorsLoaded = false;
 // let leaderboard = [];
 let monthlyLeaderboard = [];
 let hallOfFame = [];
+let usedWords = new Set();
+const WORDS_HISTORY_FILE = 'data/used-words.json';
+
+// Load used words on startup
+async function loadUsedWords() {
+    try {
+        const data = await fs.readFile(WORDS_HISTORY_FILE, 'utf8');
+        usedWords = new Set(JSON.parse(data));
+        console.log(`Loaded ${usedWords.size} used words`);
+        
+        // Calculate remaining words
+        const remainingWords = dailyWords.words.filter(word => !usedWords.has(word));
+        console.log(`Remaining unused words: ${remainingWords.length}`);
+        
+        if (remainingWords.length < 100) {
+            console.warn('Warning: Running low on unused words!');
+        }
+    } catch (error) {
+        console.log('No used words file found, starting fresh');
+        usedWords = new Set();
+    }
+}
 
 async function initLeaderboards() {
     try {
@@ -168,32 +190,65 @@ function seededRandom(seed) {
     return x - Math.floor(x);
 }
 
-function getDailyWord(clientDateString) {
+// Modify getDailyWord function
+async function getDailyWord(clientDateString) {
     if (!clientDateString) {
         console.error('No client date provided');
         clientDateString = new Date().toLocaleDateString('en-CA');
     }
 
-    // Parse the client's date string
-    const clientDate = new Date(clientDateString);
-    
-    console.log('Word selection:', {
-        clientDateString,
-        clientDate: clientDate.toISOString(),
-        clientTimestamp: clientDate.getTime()
-    });
-
-    const startDate = new Date(dailyWords.startDate);
-    const daysDiff = Math.floor((clientDate - startDate) / (1000 * 60 * 60 * 24));
+    // Use date as seed for consistent selection
     const seed = parseInt(clientDateString.replace(/-/g, ''));
     
-    let selectedWord = dailyWords.words[Math.floor(seededRandom(seed) * dailyWords.words.length)];
-    selectedWord = normalizeWordForSelection(selectedWord);
-    
+    // If running low on words, reset the used words
+    if (usedWords.size > dailyWords.words.length - 50) {
+        console.log('Resetting used words tracking - starting fresh cycle');
+        usedWords.clear();
+        await fs.writeFile(WORDS_HISTORY_FILE, JSON.stringify(Array.from(usedWords)));
+    }
+
+    // Get the word for this date consistently
+    const dateKey = `${clientDateString}`;
+    let selectedWord;
+
+    // Check if we already used a word for this date
+    const todayHistory = Array.from(usedWords).find(item => 
+        typeof item === 'object' && item.date === dateKey
+    );
+
+    if (todayHistory) {
+        // Use the same word we used before for this date
+        selectedWord = todayHistory.word;
+    } else {
+        // Get available words (excluding ones used on other dates)
+        const usedWordsList = Array.from(usedWords)
+            .map(item => typeof item === 'object' ? item.word : item);
+        const availableWords = dailyWords.words.filter(word => 
+            !usedWordsList.includes(word)
+        );
+
+        // Use seeded random to consistently select word
+        const index = Math.floor(seededRandom(seed) * availableWords.length);
+        selectedWord = availableWords[index];
+
+        // Store with date information
+        usedWords.add({
+            date: dateKey,
+            word: selectedWord
+        });
+        await fs.writeFile(WORDS_HISTORY_FILE, JSON.stringify(Array.from(usedWords)));
+    }
+
+    // Return word data
     return {
-        word: selectedWord,
+        word: normalizeWordForSelection(selectedWord),
         dateString: clientDateString,
-        wordNumber: daysDiff + 1
+        wordNumber: dailyWords.words.length - (dailyWords.words.filter(w => 
+            !Array.from(usedWords).some(used => 
+                (typeof used === 'object' ? used.word : used) === w
+            )
+        )).length + 1,
+        remainingWords: dailyWords.words.length - usedWords.size
     };
 }
 
@@ -705,57 +760,77 @@ app.get('/calculate-score', (req, res) => {
     });
 });
 
-app.get('/get-target-word', (req, res) => {
-    const clientDate = req.query.clientDate;
-    const wordData = getDailyWord(clientDate);
+app.get('/get-target-word', async (req, res) => {
+    try {
+        const clientDate = req.query.clientDate;
+        const wordData = await getDailyWord(clientDate);
     
-    // Get related words and handle variants
-    const relatedWords = getRelatedWords(wordData.word)
-        .map(word => {
-            // Check if it's a variant
-            const variants = {
-                'honour': 'honor',     // 'honor' is in your list
-                'labour': 'labor',     // 'labor' is in your list
-                'favour': 'favor',     // 'favor' is in your list
-                
-                // Common variations that might appear in hints
-                'colour': 'color',     // might appear in hints for words like 'paint'
-                'flavour': 'flavor',   // might appear in hints for words like 'taste'
-                'harbour': 'harbor',   // 'harbor' is in your list
-                'centre': 'center',    // might appear in hints for words like 'middle'
-                'metre': 'meter',      // might appear in hints for geometry-related words
-                'theatre': 'theater',  // might appear in hints for words like 'stage'
-                'defence': 'defense',  // might appear in hints for words like 'shield'
-                'offence': 'offense',  // might appear in hints for combat-related words
-                
-                // Nature/Science related (relevant to your nature words)
-                'grey': 'gray',        // might appear in color-related hints
-                'plough': 'plow',      // might appear in hints for farming words like 'field'
-                
-                // Action words (relevant to your verbs)
-                'analyse': 'analyze',  // might appear in hints for thinking words
-                'practise': 'practice',// might appear in hints for skill words
-                'catalogue': 'catalog',// might appear in hints for organizing words
-                
-                // Building/Structure related (relevant to your construction words)
-                'storey': 'story',    // might appear in hints for 'building' related words
-                'armour': 'armor'   
-                // ... rest of your variants ...
-            };
-            return variants[word.toLowerCase()] || word;
+        // Get related words and handle variants
+        const relatedWords = getRelatedWords(wordData.word)
+            .map(word => {
+                // Check if it's a variant
+                const variants = {
+                    'honour': 'honor',     // 'honor' is in your list
+                    'labour': 'labor',     // 'labor' is in your list
+                    'favour': 'favor',     // 'favor' is in your list
+                    
+                    // Common variations that might appear in hints
+                    'colour': 'color',     // might appear in hints for words like 'paint'
+                    'flavour': 'flavor',   // might appear in hints for words like 'taste'
+                    'harbour': 'harbor',   // 'harbor' is in your list
+                    'centre': 'center',    // might appear in hints for words like 'middle'
+                    'metre': 'meter',      // might appear in hints for geometry-related words
+                    'theatre': 'theater',  // might appear in hints for words like 'stage'
+                    'defence': 'defense',  // might appear in hints for words like 'shield'
+                    'offence': 'offense',  // might appear in hints for combat-related words
+                    
+                    // Nature/Science related (relevant to your nature words)
+                    'grey': 'gray',        // might appear in color-related hints
+                    'plough': 'plow',      // might appear in hints for farming words like 'field'
+                    
+                    // Action words (relevant to your verbs)
+                    'analyse': 'analyze',  // might appear in hints for thinking words
+                    'practise': 'practice',// might appear in hints for skill words
+                    'catalogue': 'catalog',// might appear in hints for organizing words
+                    
+                    // Building/Structure related (relevant to your construction words)
+                    'storey': 'story',    // might appear in hints for 'building' related words
+                    'armour': 'armor'   
+                    // ... rest of your variants ...
+                };
+                return variants[word.toLowerCase()] || word;
+            });
+
+        // Get hints for the word
+        const hints = [
+            `Think about these related words: ${relatedWords.join(', ')}`,
+            `Starts with '${wordData.word[0].toUpperCase()}'`,
+            `Has ${wordData.word.length} letters`
+        ];
+
+        // Send both word data and hints
+        res.json({
+            ...wordData,
+            hints: hints
         });
+    } catch (error) {
+        console.error('Error getting target word:', error);
+        res.status(500).json({ error: 'Failed to get target word' });
+    }
+});
 
-    // Get hints for the word
-    const hints = [
-        `Think about these related words: ${relatedWords.join(', ')}`,
-        `This is a common word. Starts with '${wordData.word[0].toUpperCase()}'`,
-        `Has ${wordData.word.length} letters`
-    ];
-
-    // Send both word data and hints
+app.get('/words-status', async (req, res) => {
+    const totalWords = dailyWords.words.length;
+    const usedWordsCount = usedWords.size;
+    const remainingWords = totalWords - usedWordsCount;
+    
     res.json({
-        ...wordData,
-        hints: hints
+        totalWords,
+        usedWords: usedWordsCount,
+        remainingWords,
+        startDate: dailyWords.startDate,
+        lastUpdated: dailyWords.metadata.lastUpdated,
+        cycleNumber: Math.floor(usedWords.size / totalWords) + 1
     });
 });
 
@@ -839,16 +914,19 @@ async function initServer() {
     }
 
     try {
+        // Add loadUsedWords to the initialization sequence
+        await loadUsedWords();
         await loadWordVectors();
         const validWords = await validateDailyWords();
-        await initLeaderboards();  // Note the 's' at the end
+        await initLeaderboards();
         
-        // Only start server if vectors loaded successfully and server isn't already running
+        // Only start server if all initialization succeeded
         if (!serverInitialized) {
             const server = app.listen(3000, () => {
                 serverInitialized = true;
-                // console.log('Enhanced Word Game Server running on http://localhost:3000');
-                // console.log(`Loaded ${wordList.length} word vectors and ${TARGET_WORDS.size} target words`);
+                console.log(`Loaded ${usedWords.size} tracked words`);
+                const remainingWords = dailyWords.words.filter(word => !usedWords.has(word));
+                console.log(`Remaining unused words: ${remainingWords.length}`);
             }).on('error', (error) => {
                 if (error.code === 'EADDRINUSE') {
                     console.log('Port 3000 is already in use. Please close other instances or use a different port.');
@@ -868,5 +946,5 @@ async function initServer() {
     }
 }
 
-// Just call initServer once
+// Just call initServer once - remove the separate loadUsedWords call
 initServer();
