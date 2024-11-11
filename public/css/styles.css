@@ -588,6 +588,27 @@ button:disabled {
     opacity: 1;
 }
 
+.target-word {
+    font-size: 1.1rem;
+    color: #64748b;
+    margin: 1rem 0;
+}
+
+.target-word .highlight {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: 6px;
+    color: #4f46e5;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.target-word .highlight:hover {
+    background: rgba(99, 102, 241, 0.2);
+    transform: translateY(-1px);
+}
+
 /* ==========================================================================
    Animations
    ========================================================================== */

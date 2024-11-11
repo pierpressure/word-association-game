@@ -1321,9 +1321,9 @@ applyFinalScore(isWin) {
                         <div class="result-emoji">${isWin ? '🎯' : '🙇'}</div>
                         <h2 class="result-text">
                             ${isWin ? 'Brilliant!' : 'Game Over'}
-                            ${isWin ? '<span class="emoji-celebration">🎉 🔝</span>' : ''}
+                            ${isWin ? '<span class="emoji-celebration">🎉 </span>' : ''}
                         </h2>
-                        <p class="target-word">The word was: <span class="highlight">${this.gameState.targetWord}</span></p>
+                        <p class="target-word">Today's word was: <span class="highlight">${this.gameState.targetWord}</span></p>
                         <p class="daily-info">WordMaster ${this.gameState.dateString}</p>
                     </div>
 
