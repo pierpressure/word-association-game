@@ -132,6 +132,37 @@ static WORD_VARIANTS = {
 
         const lastPlayed = localStorage.getItem('lastPlayedDate');
         const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
+        const lastPlayedWord = localStorage.getItem('lastWord');
+
+        const activeGameDate = localStorage.getItem('activeGameDate');
+        const activeGameWord = localStorage.getItem('activeGameWord');
+        const activeGameGuesses = localStorage.getItem(`guessHistory_${activeGameDate}`);
+
+
+        if (activeGameDate === today && activeGameGuesses) {
+            // There's an active game for today
+            console.log('Resuming active game from today');
+            this.gameState = {
+                targetWord: activeGameWord,
+                guessesLeft: this.MAX_GUESSES - JSON.parse(activeGameGuesses).length,
+                score: parseInt(localStorage.getItem('currentScore') || '0'),
+                highScore: parseInt(localStorage.getItem('wordGameHighScore') || '0'),
+                streak: parseInt(localStorage.getItem('currentStreak') || '0'),
+                hints: [],
+                hintsRevealed: parseInt(localStorage.getItem('currentHintsRevealed') || '0'),
+                dateString: activeGameDate,
+                maxPossibleScore: 1000,
+                perfectScorePossible: true,
+                shownHintWords: new Set(),
+                usedGuesses: new Set(JSON.parse(activeGameGuesses).map(g => g.word))
+            };
+            
+            this.scoreTracker = new ScoreTracker();
+            this.initializeDOM();
+            this.attachEventListeners();
+            this.initGame(true); // Pass true to indicate resuming
+            return;
+        }
             
         if (lastPlayed === today) {
             this.showAlreadyPlayedMessage();
@@ -432,63 +463,73 @@ cleanupOldGuesses() {
         });
     }
 
-async initGame() {
-    try {
-        // Use the client's local date
-        const clientDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
-        console.log('Initializing game with client date:', {
-            rawDate: new Date(),
-            formattedDate: clientDate,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-        });
-        
-        const response = await fetch(`/get-target-word?clientDate=${clientDate}`);
-        const data = await response.json();
-        
-        console.log('Game initialization:', {
-            clientDate,
-            // serverResponse: data
-        });
-        
-        this.gameState = {
-            ...this.gameState,
-            targetWord: data.word,
-            hints: data.hints,
-            dateString: clientDate,
-            wordNumber: data.wordNumber,
-            guessesLeft: this.MAX_GUESSES,
-            score: 0,
-            streak: 0
-        };
-        
-        this.loadingElement.style.display = 'none';
-        this.gameContainer.style.display = 'block';
-        this.updateDisplay();
-        this.showHints();
-        
-        // Reveal previously shown hints
-        const revealedHints = JSON.parse(localStorage.getItem('revealedHints') || '[]');
-        revealedHints.forEach(index => {
-            const button = this.hintsPanel.querySelector(`[data-hint-index="${index}"]`);
-            if (button) {
-                // Use a small timeout to ensure the button exists
-                setTimeout(() => {
-                    this.revealHint(index, button, index === 0);
-                }, 100);
-            }
-        }); // Added this closing bracket
+    async initGame(isResuming = false) {
+        try {
+            const clientDate = new Date().toLocaleDateString('en-CA');
+            
+            // Only fetch new word if not resuming
+            if (!isResuming) {
+                const response = await fetch(`/get-target-word?clientDate=${clientDate}`);
+                const data = await response.json();
+                
+                this.gameState = {
+                    ...this.gameState,
+                    targetWord: data.word,
+                    hints: data.hints,
+                    dateString: clientDate,
+                    wordNumber: data.wordNumber,
+                    guessesLeft: this.MAX_GUESSES,
+                    score: 0,
+                    streak: 0
+                };
 
-        // Animate in
-        this.gameContainer.style.opacity = 0;
-        requestAnimationFrame(() => {
-            this.gameContainer.style.transition = 'opacity 0.5s';
-            this.gameContainer.style.opacity = 1;
-        });
-    } catch (error) {
-        console.error('Error initializing game:', error);
-        this.loadingElement.textContent = 'Error loading game. Please refresh.';
+                // Save active game state
+                localStorage.setItem('activeGameDate', clientDate);
+                localStorage.setItem('activeGameWord', data.word);
+                localStorage.setItem('currentScore', '0');
+                localStorage.setItem('currentStreak', '0');
+            }
+            
+            this.loadingElement.style.display = 'none';
+            this.gameContainer.style.display = 'block';
+            this.updateDisplay();
+            this.showHints();
+            
+            // Reveal previously shown hints
+            const revealedHints = JSON.parse(localStorage.getItem('revealedHints') || '[]');
+            revealedHints.forEach(index => {
+                const button = this.hintsPanel.querySelector(`[data-hint-index="${index}"]`);
+                if (button) {
+                    setTimeout(() => {
+                        this.revealHint(index, button, index === 0);
+                    }, 100);
+                }
+            });
+
+            // Restore guesses if resuming
+            if (isResuming) {
+                const guessHistory = JSON.parse(localStorage.getItem(`guessHistory_${this.gameState.dateString}`) || '[]');
+                guessHistory.forEach(guess => {
+                    this.createAnimatedElement(
+                        'div',
+                        'guess-item',
+                        `<div class="guess-word">${guess.word}</div>
+                        <div class="guess-feedback">
+                            <span class="guess-score">Match: ${guess.score}%</span>
+                            <span class="points-earned">+${guess.points} points</span>
+                            <span class="guess-message">${guess.message}</span>
+                            <span class="emoji">${guess.emoji}</span>
+                        </div>`,
+                        this.guessesContainer,
+                        { backgroundColor: `${guess.color}20` }
+                    );
+                });
+            }
+        } catch (error) {
+            console.error('Error initializing game:', error);
+            this.loadingElement.textContent = 'Error loading game. Please refresh.';
+        }
     }
-}
 
     // startTimer() {
     //     if (this.timerInterval) clearInterval(this.timerInterval);
@@ -1018,6 +1059,9 @@ async makeGuess() {
         this.gameState.score += guessPoints;
         this.gameState.guessesLeft--;
         this.gameState.streak = data.score >= 70 ? this.gameState.streak + 1 : 0;
+
+        localStorage.setItem('currentScore', this.gameState.score.toString());
+        localStorage.setItem('currentStreak', this.gameState.streak.toString());
         
         // Clear input and update display
         this.guessInput.value = '';
